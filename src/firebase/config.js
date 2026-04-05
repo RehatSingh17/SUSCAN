@@ -3,12 +3,12 @@ import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID",
+  apiKey: "AIzaSyCd0U3tF5xWgEq7BXGMlrrfBkM518F1aZA",
+  authDomain: "suscan-2121f.firebaseapp.com",
+  projectId: "suscan-2121f",
+  storageBucket: "suscan-2121f.firebasestorage.app",
+  messagingSenderId: "372175377657",
+  appId: "1:372175377657:web:5c0399e5210d9089987e28",
 };
 
 const app = initializeApp(firebaseConfig);
