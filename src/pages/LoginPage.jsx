@@ -116,8 +116,7 @@ export default function LoginPage() {
 
           <div style={{ textAlign: "center", marginBottom: 28 }}>
             <div style={{ marginBottom: 6 }}>
-              <span style={{ fontFamily: "'DM Serif Display', serif", fontSize: 22, letterSpacing: "-0.5px", color: "#1A1A18" }}>verify</span>
-              <span style={{ fontSize: 14, color: "#AEADA6" }}>.ai</span>
+              <span style={{ fontFamily: "'DM Serif Display', serif", fontSize: 22, letterSpacing: "-0.5px", color: "#1A1A18" }}>SUSCAN</span>
             </div>
             <p style={{ fontSize: 15, color: "#888780" }}>{isSignUp ? "Create your account" : "Sign in to your account"}</p>
           </div>
