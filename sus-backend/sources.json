@@ -1,0 +1,6 @@
+[
+  { "name": "Reuters", "domain": "reuters.com", "weight": 1 },
+  { "name": "BBC News", "domain": "bbc.com", "weight": 1 },
+  { "name": "AP News", "domain": "apnews.com", "weight": 1 },
+  { "name": "Al Jazeera", "domain": "aljazeera.com", "weight": 0.9 }
+]

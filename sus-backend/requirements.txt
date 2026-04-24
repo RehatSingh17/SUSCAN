@@ -3,3 +3,5 @@ uvicorn
 python-multipart
 easyocr
 pillow
+requests
+beautifulsoup4
