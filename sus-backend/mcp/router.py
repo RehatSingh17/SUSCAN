@@ -5,6 +5,50 @@ import json
 import requests
 from bs4 import BeautifulSoup
 
+def search_with_serpapi(query: str, k: int = 5):
+    trusted_domains = [
+    "bbc.com",
+    "reuters.com",
+    "apnews.com",
+    "aljazeera.com",
+    "nytimes.com"
+]
+    api_key = "6c9d48953445c3a77ce366bafd8a1218a5097703f5c17e1dcfc0ab50b751572e"
+
+    params = {
+        "engine": "google",
+        "q": query,
+        "api_key": api_key,
+        "num": k
+    }
+
+    try:
+        res = requests.get("https://serpapi.com/search", params=params)
+        data = res.json()
+
+        results = []
+
+        for item in data.get("organic_results", []):
+            link = item.get("link", "")
+
+    # 🔥 FILTER: only trusted sources
+            if not any(domain in link for domain in trusted_domains):
+                continue
+
+            results.append({
+            "source": item.get("displayed_link"),
+            "url": link,
+            "title": item.get("title"),
+            "snippet": item.get("snippet"),
+            "score": 1
+            })
+
+        return results[:k]
+
+    except Exception as e:
+        print("SerpAPI error:", e)
+        return []
+
 
 # ─────────────────────────────────────────────
 # 🔹 Load trusted sources
@@ -136,7 +180,9 @@ async def process_input(file=None, content=None):
     cleaned = clean_text(raw_text)
 
     # ── SEARCH + SCRAPE ────────────────────────
-    search_results = search_articles(cleaned)
+    search_results = search_with_serpapi(
+    f'{cleaned} news site:bbc.com OR site:reuters.com OR site:apnews.com OR site:aljazeera.com'
+)
 
     # ── FINAL RESPONSE ─────────────────────────
     return {
