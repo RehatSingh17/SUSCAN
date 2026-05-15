@@ -34,13 +34,16 @@ def search_with_serpapi(query: str, k: int = 5):
     # 🔥 FILTER: only trusted sources
             if not any(domain in link for domain in trusted_domains):
                 continue
-
+            
+            # ──SCRAPE ARTICLE──────────────────────
+            full_text = get_article_text(link)
             results.append({
-            "source": item.get("displayed_link"),
-            "url": link,
-            "title": item.get("title"),
-            "snippet": item.get("snippet"),
-            "score": 1
+                "source": item.get("displayed_link"),
+                "url": link,
+                "title": item.get("title"),
+                "snippet": item.get("snippet"),
+                "full_text": full_text,
+                "score": 1
             })
 
         return results[:k]

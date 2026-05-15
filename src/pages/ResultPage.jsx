@@ -7,6 +7,8 @@ export default function ResultPage() {
   const navigate = useNavigate();
   const [visible, setVisible] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const [expandedIndex, setExpandedIndex] = useState(null);
+  const [showFullText, setShowFullText] = useState({});
 
   const handleShare = () => {
     setShowToast(true);
@@ -21,6 +23,7 @@ export default function ResultPage() {
 
   const result = location.state?.result;
   const data = result?.data;
+  const searchResults = data?.search_results || [];
 
   // Derive label and confidence (mocked fallback if backend doesn't supply them yet)
   const verdict = data?.label || "Likely False";
@@ -40,7 +43,7 @@ export default function ResultPage() {
         <div style={{ padding: "100px 24px", textAlign: "center" }}>
           <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 28, color: "#1A1A18", marginBottom: 16 }}>No analysis found</h2>
           <p style={{ color: "#888780", marginBottom: 32 }}>It seems you haven't submitted a claim for analysis yet.</p>
-          <button 
+          <button
             onClick={() => navigate("/")}
             style={{ padding: "10px 24px", background: "#1A1A18", color: "#FAFAF8", border: "none", borderRadius: 12, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500 }}
           >
@@ -118,14 +121,14 @@ export default function ResultPage() {
       <Navbar />
 
       <main style={{ maxWidth: 840, margin: "0 auto", padding: "48px 24px 100px" }}>
-        
+
         <div className={`fade-up ${visible ? "in" : ""}`} style={{ transitionDelay: "0ms" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <button className="back-btn" onClick={() => navigate("/")}>
               ← Back to scanner
             </button>
 
-            <button 
+            <button
               onClick={handleShare}
               style={{
                 display: "inline-flex", alignItems: "center", gap: 6,
@@ -133,8 +136,8 @@ export default function ResultPage() {
                 borderRadius: 99, padding: "6px 14px", fontSize: 13, fontWeight: 600,
                 fontFamily: "'DM Sans', sans-serif", cursor: "pointer", transition: "all 0.2s"
               }}
-              onMouseEnter={(e)=>e.target.style.background="#EEEDE8"}
-              onMouseLeave={(e)=>e.target.style.background="#F7F6F2"}
+              onMouseEnter={(e) => e.target.style.background = "#EEEDE8"}
+              onMouseLeave={(e) => e.target.style.background = "#F7F6F2"}
               title="Feature not available currently"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -147,7 +150,7 @@ export default function ResultPage() {
               Share Result
             </button>
           </div>
-          
+
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: 16, marginBottom: 32, flexWrap: "wrap", gap: 16 }}>
             <div>
               <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "clamp(32px, 5vw, 42px)", letterSpacing: "-1px", color: "#1A1A18", lineHeight: 1.1 }}>
@@ -157,7 +160,7 @@ export default function ResultPage() {
                 Review the AI verification breakdown below.
               </p>
             </div>
-            
+
             <div style={{ display: "flex", gap: 12 }}>
               <div className="pill">
                 <span style={{ color: "#AEADA6" }}>Type:</span>
@@ -198,18 +201,22 @@ export default function ResultPage() {
               </svg>
               Verified & Cleaned Text
             </h3>
-            <div style={{ 
-              backgroundColor: "#FAFAF8", 
-              padding: "24px", 
-              borderRadius: "12px", 
-              fontSize: 15, 
-              lineHeight: 1.7, 
-              color: "#1A1A18", 
-              whiteSpace: "pre-wrap",
-              border: "1px solid #EEEDE8"
-            }}>
+            <div
+              style={{
+                background: "#FAFAF8",
+                border: "1px solid #EEEDE8",
+                borderRadius: 14,
+                padding: 20,
+                fontSize: 14,
+                lineHeight: 1.8,
+                color: "#444",
+                maxHeight: 360,
+                overflowY: "auto",
+                whiteSpace: "pre-wrap"
+              }}>
               {data.cleaned_text || "No cleaned text found"}
             </div>
+
           </div>
         </div>
 
@@ -219,10 +226,10 @@ export default function ResultPage() {
             <h3 style={{ fontSize: 15, fontWeight: 600, color: "#444441", marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.5px" }}>
               Original Raw Input
             </h3>
-            <div style={{ 
-              fontSize: 14, 
-              lineHeight: 1.6, 
-              color: "#888780", 
+            <div style={{
+              fontSize: 14,
+              lineHeight: 1.6,
+              color: "#888780",
               whiteSpace: "pre-wrap",
               maxHeight: "300px",
               overflowY: "auto",
@@ -232,7 +239,216 @@ export default function ResultPage() {
             </div>
           </div>
         </div>
+        {/* Trusted Source Coverage */}
+        <div className={`fade-up ${visible ? "in" : ""}`} style={{ transitionDelay: "200ms", marginTop: 32 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+            <div>
+              <h2 style={{ fontSize: 24, fontWeight: 700, color: "#1A1A18", letterSpacing: "-0.5px" }}>
+                Trusted Source Coverage
+              </h2>
 
+              <p style={{ fontSize: 14, color: "#888780", marginTop: 4 }}>
+                {searchResults.length} trusted sources found
+              </p>
+            </div>
+          </div>
+
+          {searchResults.map((article, index) => {
+            const expanded = expandedIndex === index;
+
+            return (
+              <div
+                key={index}
+                style={{
+                  background: "#fff",
+                  border: "1px solid #E2E0D8",
+                  borderRadius: 20,
+                  padding: 24,
+                  marginBottom: 20,
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.02)",
+                  transition: "all 0.3s ease"
+                }}
+              >
+
+                {/* Source Row */}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 14
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: "50%",
+                        background: "#065F46"
+                      }}
+                    />
+
+                    <div>
+                      <span
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 700,
+                          color: "#1A1A18"
+                        }}
+                      >
+                        {article.source}
+                      </span>
+
+                      <div
+                        style={{
+                          marginTop: 4,
+                          fontSize: 13,
+                          fontWeight: 700,
+                          color: "#065F46"
+                        }}
+                      >
+                        Relevance: {Math.min(article.score * 10, 100)}%
+                      </div>
+                    </div>
+
+                    <span
+                      style={{
+                        fontSize: 12,
+                        background: "#D1FAE5",
+                        color: "#065F46",
+                        padding: "4px 10px",
+                        borderRadius: 999
+                      }}
+                    >
+                      Trusted
+                    </span>
+                  </div>
+                </div>
+
+                {/* Title */}
+                <h3
+                  style={{
+                    fontSize: 20,
+                    lineHeight: 1.4,
+                    fontWeight: 700,
+                    color: "#1A1A18",
+                    marginBottom: 14,
+                    letterSpacing: "-0.3px"
+                  }}
+                >
+                  {article.title}
+                </h3>
+
+                {/* Snippet */}
+                <p
+                  style={{
+                    fontSize: 15,
+                    lineHeight: 1.7,
+                    color: "#555",
+                    marginBottom: 18
+                  }}
+                >
+                  {article.snippet}
+                </p>
+
+                {/* Actions */}
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 14,
+                    alignItems: "center",
+                    flexWrap: "wrap"
+                  }}
+                >
+
+                  <button
+                    onClick={() =>
+                      setExpandedIndex(expanded ? null : index)
+                    }
+                    style={{
+                      background: "#1A1A18",
+                      color: "#FAFAF8",
+                      border: "none",
+                      borderRadius: 12,
+                      padding: "10px 16px",
+                      fontSize: 14,
+                      fontWeight: 600,
+                      cursor: "pointer"
+                    }}
+                  >
+                    {expanded ? "Hide Full Article ▲" : "Read Full Article ▼"}
+                  </button>
+
+                  <a
+                    href={article.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: "#1A1A18",
+                      textDecoration: "none"
+                    }}
+                  >
+                    Visit Original Source →
+                  </a>
+                </div>
+
+                {/* Expanded Article */}
+                <div
+                  style={{
+                    maxHeight: expanded ? 400 : 0,
+                    overflow: "hidden",
+                    transition: "all 0.4s ease",
+                    marginTop: expanded ? 24 : 0
+                  }}
+                >
+                  <div
+                    style={{
+                      background: "#FAFAF8",
+                      border: "1px solid #EEEDE8",
+                      borderRadius: 14,
+                      padding: 20,
+                      fontSize: 14,
+                      lineHeight: 1.8,
+                      color: "#444",
+                      maxHeight: 360,
+                      overflowY: "auto",
+                      whiteSpace: "pre-wrap"
+                    }}
+                  >
+                    {showFullText[index]
+                      ? article.full_text
+                      : `${article.full_text?.slice(0, 700)}...`}
+                    <button
+                      onClick={() =>
+                        setShowFullText((prev) => ({
+                          ...prev,
+                          [index]: !prev[index]
+                        }))
+                      }
+                      style={{
+                        marginTop: 14,
+                        background: "transparent",
+                        border: "none",
+                        color: "#1A1A18",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        fontSize: 14,
+                        display: "block"
+                      }}
+                    >
+                      {showFullText[index]
+                        ? "Show Less ▲"
+                        : "Show More ▼"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </main>
     </div>
   );
