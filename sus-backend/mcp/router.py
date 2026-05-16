@@ -1,3 +1,4 @@
+from PIL.Image import item
 from processors.ocr import extract_text_from_image
 from processors.text_cleaner import clean_text, word_count
 
@@ -37,14 +38,65 @@ def search_with_serpapi(query: str, k: int = 5):
             
             # ──SCRAPE ARTICLE──────────────────────
             full_text = get_article_text(link)
+            date = item.get("date", "Unknown")
+            score = 0
+
+            claim_words = query.lower().split()
+
+            title = item.get("title", "").lower()
+            snippet = item.get("snippet", "").lower()
+            full_lower = full_text.lower()
+            query_lower = query.lower()
+
+            # exact phrase bonuses
+            if query_lower in title:
+                score += 25
+
+            if query_lower in snippet:
+                score += 15
+
+            if query_lower in full_lower:
+                score += 10
+
+            for word in claim_words:
+
+                if word in title:
+                    score += 8
+
+                if word in snippet:
+                    score += 2
+
+                if word in full_lower:
+                    score += 1
+                    
+            # ──RECENCY SCORING────────────────────
+            recency_score = 0
+
+            date_lower = str(date).lower()
+
+            if "hour" in date_lower or "day" in date_lower:
+                recency_score = 30
+
+            elif "week" in date_lower:
+                recency_score = 20
+
+            elif "month" in date_lower:
+                recency_score = 10
+
+            elif "year" in date_lower:
+                recency_score = -10
+
+            score += recency_score       
             results.append({
                 "source": item.get("displayed_link"),
                 "url": link,
                 "title": item.get("title"),
                 "snippet": item.get("snippet"),
                 "full_text": full_text,
-                "score": 1
+                "date": date,
+                "score": score
             })
+        results.sort(key=lambda x: x["score"], reverse=True)
 
         return results[:k]
 

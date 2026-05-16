@@ -308,7 +308,12 @@ export default function ResultPage() {
                           color: "#065F46"
                         }}
                       >
-                        Relevance: {Math.min(article.score * 10, 100)}%
+                        Relevance: {
+                          Math.round(
+                            (article.score /
+                              Math.max(...searchResults.map((a) => a.score), 1)) * 100
+                          )}
+                        %
                       </div>
                     </div>
 
