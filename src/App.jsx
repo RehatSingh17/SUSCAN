@@ -1,8 +1,13 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useEffect } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import ResultPage from "./pages/ResultPage";
+
+import HistoryPage from "./pages/HistoryPage";
+import SourcesPage from "./pages/SourcesPage";
+import AboutPage from "./pages/AboutPage";
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -21,15 +26,26 @@ function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/result" element={<ResultPage />} />
       {/* Phase 2 routes — add here later */}
-      {/* <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} /> */}
+      <Route path="/history" element={<HistoryPage />} />
+      <Route path="/sources" element={<SourcesPage />} />
+      <Route path="/about" element={<AboutPage />} />
     </Routes>
   );
+}
+
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
 }
 
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <ScrollToTop />
         <AppRoutes />
       </BrowserRouter>
     </AuthProvider>

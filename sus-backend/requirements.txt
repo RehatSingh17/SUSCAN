@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+python-multipart
+
+easyocr
+pillow
+
+requests
+beautifulsoup4
+
+python-dotenv
+
+groq
