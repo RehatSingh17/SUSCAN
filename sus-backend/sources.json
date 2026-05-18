@@ -1,6 +1,742 @@
-[
-  { "name": "Reuters", "domain": "reuters.com", "weight": 1 },
-  { "name": "BBC News", "domain": "bbc.com", "weight": 1 },
-  { "name": "AP News", "domain": "apnews.com", "weight": 1 },
-  { "name": "Al Jazeera", "domain": "aljazeera.com", "weight": 0.9 }
-]
+{
+  "default": [
+    {
+      "name": "Reuters",
+      "domain": "reuters.com",
+      "weight": 1.0,
+      "scrapeable": false
+    },
+    {
+      "name": "AP News",
+      "domain": "apnews.com",
+      "weight": 1.0,
+      "scrapeable": true
+    },
+    {
+      "name": "BBC News",
+      "domain": "bbc.com",
+      "weight": 0.95,
+      "scrapeable": true
+    },
+    {
+      "name": "The Hindu",
+      "domain": "thehindu.com",
+      "weight": 0.92,
+      "scrapeable": true
+    }
+  ],
+  "international": [
+    {
+      "name": "CNN",
+      "domain": "cnn.com",
+      "weight": 1.2,
+      "scrapeable": true
+    },
+    {
+      "name": "Al Jazeera",
+      "domain": "aljazeera.com",
+      "weight": 1.2,
+      "scrapeable": true
+    }
+  ],
+  "states": {
+    "Andhra Pradesh": [
+      {
+        "name": "The Hindu",
+        "domain": "thehindu.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Deccan Chronicle",
+        "domain": "deccanchronicle.com",
+        "weight": 1.4,
+        "scrapeable": true
+      },
+      {
+        "name": "The New Indian Express",
+        "domain": "newindianexpress.com",
+        "weight": 1.35,
+        "scrapeable": true
+      }
+    ],
+    "Arunachal Pradesh": [
+      {
+        "name": "The Arunachal Times",
+        "domain": "arunachaltimes.in",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Northeast Now",
+        "domain": "nenow.in",
+        "weight": 1.35,
+        "scrapeable": true
+      },
+      {
+        "name": "The Sentinel",
+        "domain": "thesentinelassam.com",
+        "weight": 1.25,
+        "scrapeable": true
+      }
+    ],
+    "Assam": [
+      {
+        "name": "The Assam Tribune",
+        "domain": "assamtribune.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "The Sentinel",
+        "domain": "thesentinelassam.com",
+        "weight": 1.4,
+        "scrapeable": true
+      },
+      {
+        "name": "Northeast Now",
+        "domain": "nenow.in",
+        "weight": 1.35,
+        "scrapeable": true
+      }
+    ],
+    "Bihar": [
+      {
+        "name": "Hindustan Times",
+        "domain": "hindustantimes.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "The Times of India",
+        "domain": "timesofindia.indiatimes.com",
+        "weight": 1.4,
+        "scrapeable": true
+      },
+      {
+        "name": "The Telegraph",
+        "domain": "telegraphindia.com",
+        "weight": 1.3,
+        "scrapeable": true
+      }
+    ],
+    "Chhattisgarh": [
+      {
+        "name": "The Hitavada",
+        "domain": "thehitavada.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Free Press Journal",
+        "domain": "freepressjournal.in",
+        "weight": 1.35,
+        "scrapeable": true
+      },
+      {
+        "name": "The Times of India",
+        "domain": "timesofindia.indiatimes.com",
+        "weight": 1.25,
+        "scrapeable": true
+      }
+    ],
+    "Goa": [
+      {
+        "name": "The Navhind Times",
+        "domain": "navhindtimes.in",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Herald Goa",
+        "domain": "heraldgoa.in",
+        "weight": 1.4,
+        "scrapeable": true
+      },
+      {
+        "name": "The Goan",
+        "domain": "thegoan.net",
+        "weight": 1.3,
+        "scrapeable": true
+      }
+    ],
+    "Gujarat": [
+      {
+        "name": "Indian Express",
+        "domain": "indianexpress.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "The Times of India",
+        "domain": "timesofindia.indiatimes.com",
+        "weight": 1.4,
+        "scrapeable": true
+      },
+      {
+        "name": "Ahmedabad Mirror",
+        "domain": "ahmedabadmirror.com",
+        "weight": 1.25,
+        "scrapeable": true
+      }
+    ],
+    "Haryana": [
+      {
+        "name": "The Tribune",
+        "domain": "tribuneindia.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Hindustan Times",
+        "domain": "hindustantimes.com",
+        "weight": 1.35,
+        "scrapeable": true
+      },
+      {
+        "name": "The Times of India",
+        "domain": "timesofindia.indiatimes.com",
+        "weight": 1.25,
+        "scrapeable": true
+      }
+    ],
+    "Himachal Pradesh": [
+      {
+        "name": "The Tribune",
+        "domain": "tribuneindia.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "The Times of India",
+        "domain": "timesofindia.indiatimes.com",
+        "weight": 1.35,
+        "scrapeable": true
+      },
+      {
+        "name": "The New Indian Express",
+        "domain": "newindianexpress.com",
+        "weight": 1.2,
+        "scrapeable": true
+      }
+    ],
+    "Jharkhand": [
+      {
+        "name": "The Avenue Mail",
+        "domain": "avenuemail.in",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "The Telegraph",
+        "domain": "telegraphindia.com",
+        "weight": 1.35,
+        "scrapeable": true
+      },
+      {
+        "name": "Hindustan Times",
+        "domain": "hindustantimes.com",
+        "weight": 1.25,
+        "scrapeable": true
+      }
+    ],
+    "Karnataka": [
+      {
+        "name": "Deccan Herald",
+        "domain": "deccanherald.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "The Hindu",
+        "domain": "thehindu.com",
+        "weight": 1.4,
+        "scrapeable": true
+      },
+      {
+        "name": "The New Indian Express",
+        "domain": "newindianexpress.com",
+        "weight": 1.3,
+        "scrapeable": true
+      }
+    ],
+    "Kerala": [
+      {
+        "name": "Onmanorama",
+        "domain": "onmanorama.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "The Hindu",
+        "domain": "thehindu.com",
+        "weight": 1.4,
+        "scrapeable": true
+      },
+      {
+        "name": "The New Indian Express",
+        "domain": "newindianexpress.com",
+        "weight": 1.3,
+        "scrapeable": true
+      }
+    ],
+    "Madhya Pradesh": [
+      {
+        "name": "Free Press Journal",
+        "domain": "freepressjournal.in",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "The Times of India",
+        "domain": "timesofindia.indiatimes.com",
+        "weight": 1.4,
+        "scrapeable": true
+      },
+      {
+        "name": "The Hitavada",
+        "domain": "thehitavada.com",
+        "weight": 1.3,
+        "scrapeable": true
+      }
+    ],
+    "Maharashtra": [
+      {
+        "name": "Indian Express",
+        "domain": "indianexpress.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Free Press Journal",
+        "domain": "freepressjournal.in",
+        "weight": 1.4,
+        "scrapeable": true
+      },
+      {
+        "name": "Mid-day",
+        "domain": "mid-day.com",
+        "weight": 1.3,
+        "scrapeable": true
+      }
+    ],
+    "Manipur": [
+      {
+        "name": "The Sangai Express",
+        "domain": "thesangaiexpress.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Northeast Now",
+        "domain": "nenow.in",
+        "weight": 1.35,
+        "scrapeable": true
+      },
+      {
+        "name": "The Sentinel",
+        "domain": "thesentinelassam.com",
+        "weight": 1.25,
+        "scrapeable": true
+      }
+    ],
+    "Meghalaya": [
+      {
+        "name": "Shillong Times",
+        "domain": "theshillongtimes.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Northeast Now",
+        "domain": "nenow.in",
+        "weight": 1.35,
+        "scrapeable": true
+      },
+      {
+        "name": "The Sentinel",
+        "domain": "thesentinelassam.com",
+        "weight": 1.25,
+        "scrapeable": true
+      }
+    ],
+    "Mizoram": [
+      {
+        "name": "The Mizoram Post",
+        "domain": "mizorampost.net",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Northeast Now",
+        "domain": "nenow.in",
+        "weight": 1.35,
+        "scrapeable": true
+      },
+      {
+        "name": "The Sentinel",
+        "domain": "thesentinelassam.com",
+        "weight": 1.2,
+        "scrapeable": true
+      }
+    ],
+    "Nagaland": [
+      {
+        "name": "Nagaland Post",
+        "domain": "nagalandpost.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Eastern Mirror",
+        "domain": "easternmirrornagaland.com",
+        "weight": 1.4,
+        "scrapeable": true
+      },
+      {
+        "name": "Morung Express",
+        "domain": "morungexpress.com",
+        "weight": 1.3,
+        "scrapeable": true
+      }
+    ],
+    "Odisha": [
+      {
+        "name": "The New Indian Express",
+        "domain": "newindianexpress.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Odisha TV",
+        "domain": "odishatv.in",
+        "weight": 1.4,
+        "scrapeable": true
+      },
+      {
+        "name": "The Pioneer",
+        "domain": "dailypioneer.com",
+        "weight": 1.25,
+        "scrapeable": true
+      }
+    ],
+    "Punjab": [
+      {
+        "name": "The Tribune",
+        "domain": "tribuneindia.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Hindustan Times",
+        "domain": "hindustantimes.com",
+        "weight": 1.35,
+        "scrapeable": true
+      },
+      {
+        "name": "The Times of India",
+        "domain": "timesofindia.indiatimes.com",
+        "weight": 1.25,
+        "scrapeable": true
+      }
+    ],
+    "Rajasthan": [
+      {
+        "name": "The Times of India",
+        "domain": "timesofindia.indiatimes.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "The Print",
+        "domain": "theprint.in",
+        "weight": 1.3,
+        "scrapeable": true
+      },
+      {
+        "name": "The Pioneer",
+        "domain": "dailypioneer.com",
+        "weight": 1.2,
+        "scrapeable": true
+      }
+    ],
+    "Sikkim": [
+      {
+        "name": "The Sikkim Express",
+        "domain": "sikkimexpress.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "The Telegraph",
+        "domain": "telegraphindia.com",
+        "weight": 1.3,
+        "scrapeable": true
+      },
+      {
+        "name": "Northeast Now",
+        "domain": "nenow.in",
+        "weight": 1.25,
+        "scrapeable": true
+      }
+    ],
+    "Tamil Nadu": [
+      {
+        "name": "The Hindu",
+        "domain": "thehindu.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "DT Next",
+        "domain": "dtnext.in",
+        "weight": 1.4,
+        "scrapeable": true
+      },
+      {
+        "name": "The New Indian Express",
+        "domain": "newindianexpress.com",
+        "weight": 1.3,
+        "scrapeable": true
+      }
+    ],
+    "Telangana": [
+      {
+        "name": "Deccan Chronicle",
+        "domain": "deccanchronicle.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "The Siasat Daily",
+        "domain": "siasat.com",
+        "weight": 1.4,
+        "scrapeable": true
+      },
+      {
+        "name": "The Hans India",
+        "domain": "thehansindia.com",
+        "weight": 1.3,
+        "scrapeable": true
+      }
+    ],
+    "Tripura": [
+      {
+        "name": "Tripura Times",
+        "domain": "tripuratimes.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Northeast Now",
+        "domain": "nenow.in",
+        "weight": 1.35,
+        "scrapeable": true
+      },
+      {
+        "name": "The Sentinel",
+        "domain": "thesentinelassam.com",
+        "weight": 1.2,
+        "scrapeable": true
+      }
+    ],
+    "Uttar Pradesh": [
+      {
+        "name": "Hindustan Times",
+        "domain": "hindustantimes.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "The Times of India",
+        "domain": "timesofindia.indiatimes.com",
+        "weight": 1.4,
+        "scrapeable": true
+      },
+      {
+        "name": "The Pioneer",
+        "domain": "dailypioneer.com",
+        "weight": 1.3,
+        "scrapeable": true
+      }
+    ],
+    "Uttarakhand": [
+      {
+        "name": "The Tribune",
+        "domain": "tribuneindia.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Hindustan Times",
+        "domain": "hindustantimes.com",
+        "weight": 1.35,
+        "scrapeable": true
+      },
+      {
+        "name": "The Pioneer",
+        "domain": "dailypioneer.com",
+        "weight": 1.25,
+        "scrapeable": true
+      }
+    ],
+    "West Bengal": [
+      {
+        "name": "The Telegraph",
+        "domain": "telegraphindia.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "The Statesman",
+        "domain": "thestatesman.com",
+        "weight": 1.4,
+        "scrapeable": true
+      },
+      {
+        "name": "The Times of India",
+        "domain": "timesofindia.indiatimes.com",
+        "weight": 1.3,
+        "scrapeable": true
+      }
+    ]
+  },
+  "uts": {
+    "Andaman and Nicobar Islands": [
+      {
+        "name": "The Daily Telegrams",
+        "domain": "dt.andaman.gov.in",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "The Hindu",
+        "domain": "thehindu.com",
+        "weight": 1.3,
+        "scrapeable": true
+      }
+    ],
+    "Chandigarh": [
+      {
+        "name": "Chandigarh News",
+        "domain": "chandigarhnews.net",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "The Tribune",
+        "domain": "tribuneindia.com",
+        "weight": 1.4,
+        "scrapeable": true
+      },
+      {
+        "name": "Hindustan Times",
+        "domain": "hindustantimes.com",
+        "weight": 1.25,
+        "scrapeable": true
+      }
+    ],
+    "Dadra and Nagar Haveli and Daman and Diu": [
+      {
+        "name": "The Times of India",
+        "domain": "timesofindia.indiatimes.com",
+        "weight": 1.4,
+        "scrapeable": true
+      },
+      {
+        "name": "Indian Express",
+        "domain": "indianexpress.com",
+        "weight": 1.3,
+        "scrapeable": true
+      }
+    ],
+    "Delhi": [
+      {
+        "name": "Hindustan Times",
+        "domain": "hindustantimes.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Indian Express",
+        "domain": "indianexpress.com",
+        "weight": 1.4,
+        "scrapeable": true
+      },
+      {
+        "name": "The Times of India",
+        "domain": "timesofindia.indiatimes.com",
+        "weight": 1.3,
+        "scrapeable": true
+      }
+    ],
+    "Jammu and Kashmir": [
+      {
+        "name": "Greater Kashmir",
+        "domain": "greaterkashmir.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Rising Kashmir",
+        "domain": "risingkashmir.com",
+        "weight": 1.4,
+        "scrapeable": true
+      },
+      {
+        "name": "Kashmir Observer",
+        "domain": "kashmirobserver.net",
+        "weight": 1.3,
+        "scrapeable": true
+      }
+    ],
+    "Ladakh": [
+      {
+        "name": "Ladakh Live",
+        "domain": "ladakhlive.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Daily Excelsior",
+        "domain": "dailyexcelsior.com",
+        "weight": 1.3,
+        "scrapeable": true
+      }
+    ],
+    "Lakshadweep": [
+      {
+        "name": "The Hindu",
+        "domain": "thehindu.com",
+        "weight": 1.35,
+        "scrapeable": true
+      },
+      {
+        "name": "Times of India",
+        "domain": "timesofindia.indiatimes.com",
+        "weight": 1.25,
+        "scrapeable": true
+      }
+    ],
+    "Puducherry": [
+      {
+        "name": "The Hindu",
+        "domain": "thehindu.com",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "DT Next",
+        "domain": "dtnext.in",
+        "weight": 1.3,
+        "scrapeable": true
+      },
+      {
+        "name": "The New Indian Express",
+        "domain": "newindianexpress.com",
+        "weight": 1.25,
+        "scrapeable": true
+      }
+    ]
+  }
+}

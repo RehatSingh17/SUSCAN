@@ -1,249 +1,442 @@
-from PIL.Image import item
+# ─────────────────────────────────────────────
+# Load .env FIRST — before any os.getenv calls
+# ─────────────────────────────────────────────
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Walk up from this file to find .env at project root
+_HERE = Path(__file__).resolve()
+for _parent in [_HERE.parent, _HERE.parent.parent, _HERE.parent.parent.parent]:
+    _env = _parent / ".env"
+    if _env.exists():
+        load_dotenv(dotenv_path=_env, override=True)
+        break
+else:
+    load_dotenv()  # fallback: search cwd
+
+import os
+import json
+import logging
+import requests
+import time
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from bs4 import BeautifulSoup
 from processors.ocr import extract_text_from_image
 from processors.text_cleaner import clean_text, word_count
+from services.groq_service import analyze_claim
 
-import json
-import requests
-from bs4 import BeautifulSoup
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-def search_with_serpapi(query: str, k: int = 5):
-    trusted_domains = [
-    "bbc.com",
-    "reuters.com",
-    "apnews.com",
-    "aljazeera.com",
-    "nytimes.com"
+# Validate critical env vars at startup so you see the problem immediately
+_SERP_KEY = os.getenv("SERP_API_KEY")
+if not _SERP_KEY:
+    logger.error("❌ SERP_API_KEY is not set. Check your .env file location.")
+else:
+    logger.info(f"✅ SERP_API_KEY loaded ({_SERP_KEY[:6]}...)")
+
+
+# ─────────────────────────────────────────────
+# 🔹 CONSTANTS
+# ─────────────────────────────────────────────
+MAX_ARTICLE_CHARS = 2000
+MAX_EXCERPT_CHARS = 400
+MAX_QUERY_WORDS   = 15
+MAX_RESULTS       = 5
+SCRAPE_TIMEOUT    = 10
+
+REQUEST_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+}
+
+BLOCKED_SIGNALS = [
+    "enable js", "ad blocker", "please enable",
+    "javascript required", "subscribe to read", "sign in to read",
 ]
-    api_key = "6c9d48953445c3a77ce366bafd8a1218a5097703f5c17e1dcfc0ab50b751572e"
 
-    params = {
-        "engine": "google",
-        "q": query,
-        "api_key": api_key,
-        "num": k
+
+# ─────────────────────────────────────────────
+# 🔹 LOAD sources.json
+# ─────────────────────────────────────────────
+def load_sources() -> dict:
+    """
+    Find and load sources.json from the project tree.
+    Checks: sus-backend/, sus-backend/mcp/, and cwd.
+    """
+    this_file = Path(__file__).resolve()
+    candidates = [
+        this_file.parent.parent / "sources.json",   # sus-backend/sources.json  ✅ most likely
+        this_file.parent / "sources.json",           # sus-backend/mcp/sources.json
+        Path.cwd() / "sources.json",                 # wherever uvicorn was launched
+    ]
+
+    for path in candidates:
+        if path.exists():
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            logger.info(f"✅ Loaded sources.json from: {path}")
+            return data
+
+    logger.error("❌ sources.json not found in any expected location:")
+    for c in candidates:
+        logger.error(f"   tried: {c}")
+
+    # safe fallback so the app doesn't crash
+    return {
+        "default": [
+            {"name": "AP News",    "domain": "apnews.com",    "weight": 1.0, "scrapeable": True},
+            {"name": "BBC News",   "domain": "bbc.com",       "weight": 1.0, "scrapeable": True},
+            {"name": "Al Jazeera", "domain": "aljazeera.com", "weight": 0.9, "scrapeable": True},
+        ],
+        "international": [],
+        "states": {},
+        "uts": {},
     }
 
+
+# ─────────────────────────────────────────────
+# 🔹 SELECT SOURCES FOR FOCUS REGIONS
+# ─────────────────────────────────────────────
+def get_selected_sources(focus_regions: list) -> list:
+    """
+    Always include default sources.
+    Merge in region-specific sources based on focus_regions.
+    Deduplicates by domain so no source appears twice.
+    """
+    data = load_sources()
+    seen  = set()
+    out   = []
+
+    def add(source_list):
+        for s in source_list:
+            if s["domain"] not in seen:
+                seen.add(s["domain"])
+                out.append(s)
+
+    add(data.get("default", []))
+
+    for region in focus_regions:
+        if region == "International":
+            add(data.get("international", []))
+        elif region in data.get("states", {}):
+            add(data["states"][region])
+        elif region in data.get("uts", {}):
+            add(data["uts"][region])
+        else:
+            logger.warning(f"Unknown region in focus_regions: '{region}'")
+
+    logger.info(
+        f"Selected {len(out)} sources "
+        f"(regions: {focus_regions if focus_regions else ['default']})"
+    )
+    return out
+
+
+# ─────────────────────────────────────────────
+# 🔹 SCRAPE ARTICLE TEXT
+# ─────────────────────────────────────────────
+def get_article_text(url: str, scrapeable: bool = True) -> str:
+    """
+    Scrape and return clean article text.
+    Returns '' immediately for non-scrapeable sources.
+    """
+    if not scrapeable:
+        logger.info(f"Skip (non-scrapeable): {url}")
+        return ""
+
     try:
-        res = requests.get("https://serpapi.com/search", params=params)
-        data = res.json()
+        resp = requests.get(url, headers=REQUEST_HEADERS, timeout=SCRAPE_TIMEOUT)
+        resp.raise_for_status()
 
-        results = []
-
-        for item in data.get("organic_results", []):
-            link = item.get("link", "")
-
-    # 🔥 FILTER: only trusted sources
-            if not any(domain in link for domain in trusted_domains):
-                continue
-            
-            # ──SCRAPE ARTICLE──────────────────────
-            full_text = get_article_text(link)
-            date = item.get("date", "Unknown")
-            score = 0
-
-            claim_words = query.lower().split()
-
-            title = item.get("title", "").lower()
-            snippet = item.get("snippet", "").lower()
-            full_lower = full_text.lower()
-            query_lower = query.lower()
-
-            # exact phrase bonuses
-            if query_lower in title:
-                score += 25
-
-            if query_lower in snippet:
-                score += 15
-
-            if query_lower in full_lower:
-                score += 10
-
-            for word in claim_words:
-
-                if word in title:
-                    score += 8
-
-                if word in snippet:
-                    score += 2
-
-                if word in full_lower:
-                    score += 1
-                    
-            # ──RECENCY SCORING────────────────────
-            recency_score = 0
-
-            date_lower = str(date).lower()
-
-            if "hour" in date_lower or "day" in date_lower:
-                recency_score = 30
-
-            elif "week" in date_lower:
-                recency_score = 20
-
-            elif "month" in date_lower:
-                recency_score = 10
-
-            elif "year" in date_lower:
-                recency_score = -10
-
-            score += recency_score       
-            results.append({
-                "source": item.get("displayed_link"),
-                "url": link,
-                "title": item.get("title"),
-                "snippet": item.get("snippet"),
-                "full_text": full_text,
-                "date": date,
-                "score": score
-            })
-        results.sort(key=lambda x: x["score"], reverse=True)
-
-        return results[:k]
-
-    except Exception as e:
-        print("SerpAPI error:", e)
-        return []
-
-
-# ─────────────────────────────────────────────
-# 🔹 Load trusted sources
-# ─────────────────────────────────────────────
-def load_sources():
-    with open("sources.json", "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-# ─────────────────────────────────────────────
-# 🔹 Extract full article text
-# ─────────────────────────────────────────────
-def get_article_text(url: str):
-    try:
-        headers = {
-            "User-Agent": "Mozilla/5.0",
-            "Accept-Language": "en-US,en;q=0.9"
-        }
-
-        res = requests.get(url, headers=headers, timeout=10)
-
-        soup = BeautifulSoup(res.text, "html.parser")
-
-        # Remove unwanted elements
-        for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
+        soup = BeautifulSoup(resp.text, "html.parser")
+        for tag in soup(["script","style","nav","footer","header","aside","form"]):
             tag.decompose()
 
-        article = soup.find("article") or soup.find("main") or soup.find("body")
+        article = (
+            soup.find("article")
+            or soup.find("main")
+            or soup.find("div", class_=lambda c: c and "content" in c.lower())
+            or soup.find("body")
+        )
         if not article:
             return ""
 
-        text = article.get_text(separator=" ", strip=True)
-        return text[:2000]
+        text = " ".join(article.get_text(separator=" ", strip=True).split())
 
+        if any(sig in text.lower() for sig in BLOCKED_SIGNALS):
+            logger.info(f"Skip (paywall/block): {url}")
+            return ""
+
+        return text[:MAX_ARTICLE_CHARS]
+
+    except requests.exceptions.Timeout:
+        logger.info(f"Skip (timeout): {url}")
+        return ""
+    except requests.exceptions.HTTPError as e:
+        logger.info(f"Skip (HTTP {e.response.status_code}): {url}")
+        return ""
     except Exception as e:
-        print("Scrape error:", e)
+        logger.error(f"Scrape error {url}: {e}")
         return ""
 
 
 # ─────────────────────────────────────────────
-# 🔹 Search + scrape articles (FIXED)
+# 🔹 RELEVANCE SCORE
 # ─────────────────────────────────────────────
-def search_articles(query: str, k: int = 5):
-    sources = load_sources()
-    results = []
+def score_article(
+    query: str,
+    title: str,
+    snippet: str,
+    full_text: str,
+    date: str,
+    weight: float = 1.0,
+) -> float:
 
-    headers = {"User-Agent": "Mozilla/5.0"}
+    score = 0.0
+    stop  = {"the","a","an","on","in","at","of","and","or","for","to","is","was","are"}
+    words = [w for w in query.lower().split() if w not in stop and len(w) > 2]
 
-    query_words = set(query.lower().split())
+    tl = title.lower();   sl = snippet.lower()
+    fl = full_text.lower(); ql = query.lower()
 
-    for source in sources:
-        try:
-            res = requests.get(f"https://{source['domain']}", headers=headers, timeout=10)
-            soup = BeautifulSoup(res.text, "html.parser")
+    if ql in tl: score += 30
+    if ql in sl: score += 20
 
-            links = []
-            for a in soup.select("a[href]"):
-                href = a.get("href")
+    for w in words:
+        if w in tl: score += 6
+        if w in sl: score += 4
+        if w in fl: score += 1
 
-                if not href:
-                    continue
+    dl = str(date).lower()
+    if   "hour" in dl or "minute" in dl: score += 35
+    elif "day"  in dl:                   score += 25
+    elif "week" in dl:                   score += 15
+    elif "month" in dl:                  score += 5
+    elif "year" in dl:                   score -= 15
 
-                if href.startswith("/"):
-                    href = f"https://{source['domain']}{href}"
+    return round(score * weight, 2)
 
-                if source["domain"] in href and href.count("/") > 3:
-                    links.append(href)
 
-            links = list(set(links))[:5]
+# ─────────────────────────────────────────────
+# 🔹 SERPAPI SEARCH
+# ─────────────────────────────────────────────
+def search_with_serpapi(
+    query: str,
+    selected_sources: list,
+    k: int = MAX_RESULTS,
+) -> list:
 
-            for link in links:
-                text = get_article_text(link)
+    api_key = os.getenv("SERP_API_KEY")
+    if not api_key:
+        logger.error("SERP_API_KEY missing — cannot search.")
+        return []
 
-                if not text:
-                    continue
+    # Build site: filter from selected sources
+    site_filter = " OR ".join(f"site:{s['domain']}" for s in selected_sources)
+    full_query  = f"{query} ({site_filter})"
 
-                # 🔥 KEY FIX: relevance check
-                text_lower = text.lower()
+    params = {
+        "engine":  "google",
+        "q":       full_query,
+        "api_key": api_key,
+        "num":     k * 3,   # fetch more, filter down after scraping
+        "hl":      "en",
+        "gl":      "in",
+    }
 
-                match_score = sum(1 for word in query_words if word in text_lower)
+    logger.info(f"SerpAPI query: {full_query[:120]}...")
 
-                if match_score >= 3:  # threshold
-                    results.append({
-                        "source": source["name"],
-                        "url": link,
-                        "text": text[:1000],
-                        "score": match_score
-                    })
+    try:
+        resp = requests.get(
+            "https://serpapi.com/search",
+            params=params,
+            timeout=20,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as e:
+        logger.error(f"SerpAPI request failed: {e}")
+        return []
 
-            if len(results) >= k:
+    organic = data.get("organic_results", [])
+    logger.info(f"SerpAPI returned {len(organic)} organic results")
+
+    # O(1) domain lookup
+    domain_map = {s["domain"]: s for s in selected_sources}
+
+    # ── Match organic results to sources ──────────────────────────────────────
+    candidates = []
+    for item in organic:
+        link    = item.get("link", "")
+        title   = item.get("title", "")
+        snippet = item.get("snippet", "")
+        date    = item.get("date", "Unknown")
+
+        matched = None
+        for domain, source in domain_map.items():
+            if domain in link:
+                matched = source
                 break
 
-        except Exception as e:
-            print("Search error:", e)
+        if not matched:
+            logger.info(f"No source match for: {link}")
+            continue
 
-    # sort by relevance
+        candidates.append({
+            "link": link, "title": title,
+            "snippet": snippet, "date": date,
+            "matched": matched,
+        })
+
+    # ── Scrape ALL articles in parallel ──────────────────────────────────────
+    # Instead of scraping one-by-one (slow), fire all requests at once.
+    # 5 articles × ~3s each = 15s sequential → ~3s parallel
+    def scrape_candidate(c):
+        t0 = time.time()
+        full_text = get_article_text(
+            c["link"],
+            scrapeable=c["matched"].get("scrapeable", True),
+        )
+        if not full_text or len(full_text.strip()) < 80:
+            full_text = f"{c['title']}. {c['snippet']}"
+            logger.info(f"Fallback used for: {c['link']}")
+        logger.info(f"Scraped in {time.time()-t0:.1f}s: {c['link'][:60]}")
+        return full_text
+
+    # Max 8 threads — enough for 9 results without hammering servers
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        futures = {ex.submit(scrape_candidate, c): c for c in candidates}
+        scraped = {}
+        for future in as_completed(futures):
+            c = futures[future]
+            scraped[c["link"]] = future.result()
+
+    # ── Build results list ────────────────────────────────────────────────────
+    results = []
+    for c in candidates:
+        full_text = scraped.get(c["link"], f"{c['title']}. {c['snippet']}")
+        matched   = c["matched"]
+
+        score = score_article(
+            query=query,
+            title=c["title"],
+            snippet=c["snippet"],
+            full_text=full_text,
+            date=c["date"],
+            weight=matched.get("weight", 1.0),
+        )
+
+        results.append({
+            "source":       matched["name"],
+            "url":          c["link"],
+            "title":        c["title"],
+            "snippet":      c["snippet"],
+            "date":         c["date"],
+            "score":        score,
+            "trust_weight": matched.get("weight", 1.0),
+            "excerpt":      full_text[:MAX_EXCERPT_CHARS],
+            "full_text":    full_text,
+        })
+
     results.sort(key=lambda x: x["score"], reverse=True)
-
+    logger.info(f"Returning {min(len(results), k)}/{len(results)} results after filtering")
     return results[:k]
 
-# ─────────────────────────────────────────────
-# 🔹 MAIN ROUTER FUNCTION
-# ─────────────────────────────────────────────
-async def process_input(file=None, content=None):
-    """
-    MCP Router:
-    - Image → OCR → Cleaner → Search → Articles
-    - Text → Cleaner → Search → Articles
-    """
 
-    # ❌ prevent invalid input
+# ─────────────────────────────────────────────
+# 🔹 BUILD AI CONTEXT
+# ─────────────────────────────────────────────
+def build_context(search_results: list) -> tuple:
+    parts = []
+    dates = []
+    for r in search_results[:3]:
+        parts.append(
+            f"SOURCE: {r['source']} (trust: {r['trust_weight']})\n"
+            f"DATE: {r['date']}\n"
+            f"TITLE: {r['title']}\n"
+            f"SNIPPET: {r['snippet']}\n"
+            f"EXCERPT: {r['excerpt']}"
+        )
+        dates.append(r["date"])
+    return "\n\n---\n\n".join(parts), dates
+
+
+# ─────────────────────────────────────────────
+# 🔹 MAIN PIPELINE
+# ─────────────────────────────────────────────
+async def process_input(
+    file=None,
+    content=None,
+    focus_regions: list = [],
+) -> dict:
+
     if file and content:
-        raise ValueError("Provide either file or content, not both")
+        raise ValueError("Provide either file or content, not both.")
 
-    # ── INPUT HANDLING ─────────────────────────
+    # ── Input ─────────────────────────────────
     if file is not None:
         image_bytes = await file.read()
-        raw_text = extract_text_from_image(image_bytes)
-        input_type = "image"
-
+        raw_text    = extract_text_from_image(image_bytes)
+        input_type  = "image"
+        logger.info("Input: image (OCR)")
     elif content is not None:
-        raw_text = content
+        raw_text   = content
         input_type = "text"
-
+        logger.info(f"Input: text — '{raw_text[:60]}'")
     else:
-        raise ValueError("No input provided")
+        raise ValueError("No input provided.")
 
-    # ── CLEANING ───────────────────────────────
+    # ── Clean ─────────────────────────────────
     cleaned = clean_text(raw_text)
+    if not cleaned or len(cleaned.strip()) < 3:
+        raise ValueError("Input text too short after cleaning.")
 
-    # ── SEARCH + SCRAPE ────────────────────────
+    short_query = " ".join(cleaned.split()[:MAX_QUERY_WORDS])
+
+    # ── Sources ───────────────────────────────
+    selected_sources = get_selected_sources(focus_regions)
+
+    # ── Search ────────────────────────────────
     search_results = search_with_serpapi(
-    f'{cleaned} news site:bbc.com OR site:reuters.com OR site:apnews.com OR site:aljazeera.com'
-)
+        query=short_query,
+        selected_sources=selected_sources,
+    )
 
-    # ── FINAL RESPONSE ─────────────────────────
+    # ── Context + AI ──────────────────────────
+    context_text, dates = build_context(search_results)
+
+    try:
+        analysis = analyze_claim(
+            claim=cleaned,
+            context_text=context_text,
+            dates=dates,
+        )
+    except Exception as e:
+        logger.error(f"AI error: {e}")
+        analysis = {
+            "event_recency":  "unclear",
+            "truth_score":    0,
+            "bias_detected":  False,
+            "bias_types":     [],
+            "missing_context": "AI unavailable",
+            "summary":        "AI analysis temporarily unavailable.",
+            "reasoning":      "AI reasoning temporarily unavailable.",
+            "final_verdict":  "unclear",
+        }
+
     return {
-        "input_type": input_type,
-        "raw_text": raw_text,
-        "cleaned_text": cleaned,
-        "word_count": word_count(cleaned),
-        "search_results": search_results
+        "input_type":     input_type,
+        "focus_regions":  focus_regions,
+        "raw_text":       raw_text,
+        "cleaned_text":   cleaned,
+        "word_count":     word_count(cleaned),
+        "search_results": search_results,
+        "analysis":       analysis,
     }
