@@ -108,16 +108,177 @@ const SOURCES = [
   },
 ];
 
-const CATEGORIES = ["All", "Global", "India", "Regional", "Digital", "Aggregated"];
+const CATEGORIES = ["Global", "India", "States"];
 
+const ALL_STATES = Array.from(new Set(
+  SOURCES.filter(s => s.category === "Regional").flatMap(s => s.coverage)
+)).sort();
+
+function StatesModal({ selectedStates, onSelect, onClose }) {
+  const overlayRef = useRef(null);
+
+  const handleBackdrop = (e) => {
+    if (e.target === overlayRef.current) onClose();
+  };
+
+  useEffect(() => {
+    const fn = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", fn);
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", fn);
+      document.body.style.overflow = "";
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      ref={overlayRef}
+      onClick={handleBackdrop}
+      style={{
+        position: "fixed", inset: 0,
+        background: "rgba(26,26,24,0.6)",
+        backdropFilter: "blur(6px)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 1000, padding: "20px",
+        animation: "fadeOverlay 0.25s ease",
+      }}
+    >
+      <div style={{
+        background: "#fff",
+        borderRadius: 28,
+        width: "100%",
+        maxWidth: 500,
+        maxHeight: "90vh",
+        display: "flex",
+        flexDirection: "column",
+        boxShadow: "0 40px 80px rgba(0,0,0,0.2)",
+        animation: "slideModal 0.35s cubic-bezier(0.16,1,0.3,1)",
+      }}>
+        {/* HEADER */}
+        <div style={{
+          padding: "24px 30px", borderBottom: "1px solid #EEEDE8",
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+        }}>
+          <div>
+            <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 22, color: "#1A1A18" }}>
+              Select States
+            </h2>
+            <div style={{ fontSize: 13, color: "#888780", marginTop: 4 }}>
+              Choose regions to view local sources
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              width: 36, height: 36, borderRadius: "50%",
+              background: "#F7F6F2", border: "1px solid #EEEDE8",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", fontSize: 16, color: "#888780", flexShrink: 0,
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = "#1A1A18"; e.currentTarget.style.color = "#FAFAF8"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "#F7F6F2"; e.currentTarget.style.color = "#888780"; }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* BODY */}
+        <div style={{ padding: "24px 30px", overflowY: "auto", flex: 1 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+            {ALL_STATES.map(st => {
+              const active = selectedStates.includes(st);
+              return (
+                <button
+                  key={st}
+                  onClick={() => onSelect(st)}
+                  style={{
+                    background: active ? "#1A1A18" : "#fff",
+                    color: active ? "#FAFAF8" : "#666460",
+                    border: `1.5px solid ${active ? "#1A1A18" : "#E2E0D8"}`,
+                    borderRadius: 999, padding: "8px 16px",
+                    fontSize: 13, fontWeight: 600, cursor: "pointer",
+                    fontFamily: "'DM Sans', sans-serif",
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  {st}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* FOOTER */}
+        <div style={{ padding: "20px 30px", borderTop: "1px solid #EEEDE8", background: "#F7F6F2", borderRadius: "0 0 28px 28px", textAlign: "right" }}>
+          <button
+            onClick={onClose}
+            style={{
+              background: "#1A1A18", color: "#FAFAF8", border: "none",
+              borderRadius: 12, padding: "12px 28px", fontSize: 14,
+              fontWeight: 700, cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+            }}
+          >
+            Apply Filters
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 const STATS = [
   { value: "170+", label: "Trusted Sources", icon: "📚" },
-  { value: "36",   label: "Indian States & UTs", icon: "🗺" },
-  { value: "26",   label: "Languages Covered", icon: "🌐" },
-  { value: "99%",  label: "Uptime", icon: "⚡" },
+  { value: "36", label: "Indian States & UTs", icon: "🗺" },
+  { value: "26", label: "Languages Covered", icon: "🌐" },
+  { value: "99%", label: "Uptime", icon: "⚡" },
 ];
 
 // ── Application Modal ─────────────────────────────────────────────────────────
+
+const FormField = ({ id, label, placeholder, type = "text", required, half, textarea, children, value, error, onChange }) => (
+  <div style={{ gridColumn: half ? "span 1" : "span 2", display: "flex", flexDirection: "column", gap: 6 }}>
+    <label style={{ fontSize: 12, fontWeight: 700, color: "#555", letterSpacing: "0.05em" }}>
+      {label} {required && <span style={{ color: "#EF4444" }}>*</span>}
+    </label>
+    {children || (textarea ? (
+      <textarea
+        rows={4}
+        placeholder={placeholder}
+        value={value}
+        onChange={e => onChange(id, e.target.value)}
+        style={{
+          border: `1.5px solid ${error ? "#FCA5A5" : "#E2E0D8"}`,
+          borderRadius: 12, padding: "12px 14px", fontSize: 14,
+          fontFamily: "'DM Sans', sans-serif", color: "#1A1A18",
+          background: error ? "#FFF5F5" : "#FAFAF8",
+          resize: "vertical", outline: "none", lineHeight: 1.6,
+          transition: "border-color 0.2s",
+        }}
+        onFocus={e => { e.target.style.borderColor = "#1A1A18"; }}
+        onBlur={e => { e.target.style.borderColor = error ? "#FCA5A5" : "#E2E0D8"; }}
+      />
+    ) : (
+      <input
+        type={type}
+        placeholder={placeholder}
+        value={value}
+        onChange={e => onChange(id, e.target.value)}
+        style={{
+          border: `1.5px solid ${error ? "#FCA5A5" : "#E2E0D8"}`,
+          borderRadius: 12, padding: "12px 14px", fontSize: 14,
+          fontFamily: "'DM Sans', sans-serif", color: "#1A1A18",
+          background: error ? "#FFF5F5" : "#FAFAF8",
+          outline: "none", transition: "border-color 0.2s",
+        }}
+        onFocus={e => { e.target.style.borderColor = "#1A1A18"; }}
+        onBlur={e => { e.target.style.borderColor = error ? "#FCA5A5" : "#E2E0D8"; }}
+      />
+    ))}
+    {error && <span style={{ fontSize: 12, color: "#EF4444" }}>⚠ {error}</span>}
+  </div>
+);
+
 function ApplyModal({ onClose }) {
   const [form, setForm] = useState({
     name: "",
@@ -152,10 +313,10 @@ function ApplyModal({ onClose }) {
 
   const validate = () => {
     const e = {};
-    if (!form.name.trim())         e.name = "Your name is required";
+    if (!form.name.trim()) e.name = "Your name is required";
     if (!form.organization.trim()) e.organization = "Organization name is required";
     if (!form.email.trim() || !/\S+@\S+\.\S+/.test(form.email)) e.email = "Valid email is required";
-    if (!form.description.trim())  e.description = "Please describe your organization";
+    if (!form.description.trim()) e.description = "Please describe your organization";
     return e;
   };
 
@@ -166,12 +327,12 @@ function ApplyModal({ onClose }) {
     try {
       // POST to your backend endpoint — configure this on your server
       // to forward the email to rakshamshar@gmail.com
-      const res = await fetch("/api/apply-source", {
+      const res = await fetch("http://localhost:8000/api/apply-source", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          to: "rakshamshar@gmail.com",
-          subject: `[SUSCAN] New Source Application – ${form.organization}`,
+          to: "rehatsinghjagirdar@gmail.com",
+          subject: `[SUSCAN] New Source Application - ${form.organization}`,
           ...form,
         }),
       });
@@ -184,48 +345,10 @@ function ApplyModal({ onClose }) {
     }
   };
 
-  const Field = ({ id, label, placeholder, type = "text", required, half, textarea, children }) => (
-    <div style={{ gridColumn: half ? "span 1" : "span 2", display: "flex", flexDirection: "column", gap: 6 }}>
-      <label style={{ fontSize: 12, fontWeight: 700, color: "#555", letterSpacing: "0.05em" }}>
-        {label} {required && <span style={{ color: "#EF4444" }}>*</span>}
-      </label>
-      {children || (textarea ? (
-        <textarea
-          rows={4}
-          placeholder={placeholder}
-          value={form[id]}
-          onChange={e => { setForm(p => ({ ...p, [id]: e.target.value })); setErrors(p => ({ ...p, [id]: "" })); }}
-          style={{
-            border: `1.5px solid ${errors[id] ? "#FCA5A5" : "#E2E0D8"}`,
-            borderRadius: 12, padding: "12px 14px", fontSize: 14,
-            fontFamily: "'DM Sans', sans-serif", color: "#1A1A18",
-            background: errors[id] ? "#FFF5F5" : "#FAFAF8",
-            resize: "vertical", outline: "none", lineHeight: 1.6,
-            transition: "border-color 0.2s",
-          }}
-          onFocus={e => { e.target.style.borderColor = "#1A1A18"; }}
-          onBlur={e => { e.target.style.borderColor = errors[id] ? "#FCA5A5" : "#E2E0D8"; }}
-        />
-      ) : (
-        <input
-          type={type}
-          placeholder={placeholder}
-          value={form[id]}
-          onChange={e => { setForm(p => ({ ...p, [id]: e.target.value })); setErrors(p => ({ ...p, [id]: "" })); }}
-          style={{
-            border: `1.5px solid ${errors[id] ? "#FCA5A5" : "#E2E0D8"}`,
-            borderRadius: 12, padding: "12px 14px", fontSize: 14,
-            fontFamily: "'DM Sans', sans-serif", color: "#1A1A18",
-            background: errors[id] ? "#FFF5F5" : "#FAFAF8",
-            outline: "none", transition: "border-color 0.2s",
-          }}
-          onFocus={e => { e.target.style.borderColor = "#1A1A18"; }}
-          onBlur={e => { e.target.style.borderColor = errors[id] ? "#FCA5A5" : "#E2E0D8"; }}
-        />
-      ))}
-      {errors[id] && <span style={{ fontSize: 12, color: "#EF4444" }}>⚠ {errors[id]}</span>}
-    </div>
-  );
+  const handleFieldChange = (id, val) => {
+    setForm(p => ({ ...p, [id]: val }));
+    setErrors(p => ({ ...p, [id]: "" }));
+  };
 
   return (
     <div
@@ -342,13 +465,13 @@ function ApplyModal({ onClose }) {
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <Field id="name"         label="Your Full Name"      placeholder="e.g. Rahul Sharma"  required half />
-                <Field id="organization" label="Organization Name"   placeholder="e.g. Punjab Tribune" required half />
-                <Field id="email"        label="Contact Email"       placeholder="you@newsroom.com"    required type="email" half />
-                <Field id="website"      label="Website / URL"       placeholder="https://yoursite.com" half />
-                <Field id="region"       label="Primary Coverage Region" placeholder="e.g. Punjab, Delhi, Pan-India" half />
-                <Field id="monthlyReaders" label="Monthly Readers (approx.)" placeholder="e.g. 500,000" half />
-                <Field id="description" label="Tell us about your organization" placeholder="Your editorial standards, fact-checking process, languages covered, and why you should be listed on SUSCAN..." required textarea />
+                <FormField id="name" label="Your Full Name" placeholder="e.g. Rahul Sharma" required half value={form.name} error={errors.name} onChange={handleFieldChange} />
+                <FormField id="organization" label="Organization Name" placeholder="e.g. Punjab Tribune" required half value={form.organization} error={errors.organization} onChange={handleFieldChange} />
+                <FormField id="email" label="Contact Email" placeholder="you@newsroom.com" required type="email" half value={form.email} error={errors.email} onChange={handleFieldChange} />
+                <FormField id="website" label="Website / URL" placeholder="https://yoursite.com" half value={form.website} error={errors.website} onChange={handleFieldChange} />
+                <FormField id="region" label="Primary Coverage Region" placeholder="e.g. Punjab, Delhi, Pan-India" half value={form.region} error={errors.region} onChange={handleFieldChange} />
+                <FormField id="monthlyReaders" label="Monthly Readers (approx.)" placeholder="e.g. 500,000" half value={form.monthlyReaders} error={errors.monthlyReaders} onChange={handleFieldChange} />
+                <FormField id="description" label="Tell us about your organization" placeholder="Your editorial standards, fact-checking process, languages covered, and why you should be listed on SUSCAN..." required textarea value={form.description} error={errors.description} onChange={handleFieldChange} />
               </div>
 
               {/* Submit */}
@@ -479,9 +602,12 @@ function SourceCard({ source, index }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function SourcesPage() {
   const [visible, setVisible] = useState(false);
-  const [filter, setFilter] = useState("All");
+  const [filter, setFilter] = useState("Global");
   const [search, setSearch] = useState("");
-  const [showModal, setShowModal] = useState(false);
+  const [showApplyModal, setShowApplyModal] = useState(false);
+  const [showStatesModal, setShowStatesModal] = useState(false);
+  const [selectedStates, setSelectedStates] = useState([]);
+  const [showIndiaAll, setShowIndiaAll] = useState(false);
   const [statRef, statInView] = useInView(0.1);
 
   useEffect(() => {
@@ -490,12 +616,34 @@ export default function SourcesPage() {
   }, []);
 
   const filtered = SOURCES.filter(s => {
-    const matchCat = filter === "All" || s.category === filter;
-    const matchSearch = s.name.toLowerCase().includes(search.toLowerCase()) ||
+    let matchCat = false;
+    if (filter === "Global") {
+      matchCat = s.category === "Global";
+    } else if (filter === "India") {
+      matchCat = s.category === "India";
+    } else if (filter === "States") {
+      matchCat = s.category === "Regional" && (selectedStates.length === 0 || s.coverage.some(c => selectedStates.includes(c)));
+    } else {
+      matchCat = true;
+    }
+
+    const matchSearch = search.length === 0 || s.name.toLowerCase().includes(search.toLowerCase()) ||
       s.description.toLowerCase().includes(search.toLowerCase()) ||
       s.coverage.some(c => c.toLowerCase().includes(search.toLowerCase()));
+
     return matchCat && matchSearch;
   });
+
+  let displaySources = filtered;
+  if (filter === "India" && !showIndiaAll && search.length === 0) {
+    displaySources = filtered.slice(0, 5);
+  }
+
+  const handleSelectState = (st) => {
+    setSelectedStates(prev =>
+      prev.includes(st) ? prev.filter(x => x !== st) : [...prev, st]
+    );
+  };
 
   return (
     <div style={{ minHeight: "100vh", background: "#FAFAF8", fontFamily: "'DM Sans', sans-serif", color: "#1A1A18", overflowX: "hidden" }}>
@@ -554,15 +702,16 @@ export default function SourcesPage() {
       `}</style>
 
       <Navbar />
-      {showModal && <ApplyModal onClose={() => setShowModal(false)} />}
+      {showApplyModal && <ApplyModal onClose={() => setShowApplyModal(false)} />}
+      {showStatesModal && <StatesModal selectedStates={selectedStates} onSelect={handleSelectState} onClose={() => setShowStatesModal(false)} />}
 
       <main style={{ maxWidth: 800, margin: "0 auto", padding: "48px 24px 100px" }}>
 
         {/* ── HERO ─────────────────────────────────────────────────────────── */}
         <div style={{ marginBottom: 56, position: "relative" }}>
           {/* Floating blobs */}
-          <div className="float"  style={{ position: "absolute", top: 0,   right: "0%",  width: 64, height: 64, borderRadius: "50%", background: "linear-gradient(135deg, #D1FAE5, #A7F3D0)", opacity: 0.6, filter: "blur(2px)", pointerEvents: "none" }} />
-          <div className="float2" style={{ position: "absolute", top: 20,  right: "12%", width: 40, height: 40, borderRadius: "50%", background: "linear-gradient(135deg, #FEF3C7, #FDE68A)", opacity: 0.6, filter: "blur(1px)", pointerEvents: "none" }} />
+          <div className="float" style={{ position: "absolute", top: 0, right: "0%", width: 64, height: 64, borderRadius: "50%", background: "linear-gradient(135deg, #D1FAE5, #A7F3D0)", opacity: 0.6, filter: "blur(2px)", pointerEvents: "none" }} />
+          <div className="float2" style={{ position: "absolute", top: 20, right: "12%", width: 40, height: 40, borderRadius: "50%", background: "linear-gradient(135deg, #FEF3C7, #FDE68A)", opacity: 0.6, filter: "blur(1px)", pointerEvents: "none" }} />
 
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 8,
@@ -625,39 +774,71 @@ export default function SourcesPage() {
           </div>
 
           {/* Category filters */}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {CATEGORIES.map(cat => (
-              <button
-                key={cat}
-                className="filter-pill"
-                onClick={() => setFilter(cat)}
-                style={{
-                  background: filter === cat ? "#1A1A18" : "#fff",
-                  color: filter === cat ? "#FAFAF8" : "#666460",
-                  border: `1.5px solid ${filter === cat ? "#1A1A18" : "#E2E0D8"}`,
-                }}
-              >
-                {cat}
-              </button>
-            ))}
-            <span style={{ fontSize: 13, color: "#AEADA6", alignSelf: "center", marginLeft: 4 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            {CATEGORIES.map(cat => {
+              const isActive = filter === cat;
+              let label = cat;
+              if (cat === "States" && selectedStates.length > 0) {
+                label = `States (${selectedStates.length})`;
+              }
+              return (
+                <button
+                  key={cat}
+                  className="filter-pill"
+                  onClick={() => {
+                    setFilter(cat);
+                    if (cat === "States") setShowStatesModal(true);
+                  }}
+                  style={{
+                    background: isActive ? "#1A1A18" : "#fff",
+                    color: isActive ? "#FAFAF8" : "#666460",
+                    border: `1.5px solid ${isActive ? "#1A1A18" : "#E2E0D8"}`,
+                  }}
+                >
+                  {label}
+                  {cat === "States" && (
+                    <span style={{ marginLeft: 6, fontSize: 10 }}>▼</span>
+                  )}
+                </button>
+              );
+            })}
+            <span style={{ fontSize: 13, color: "#AEADA6", marginLeft: 4 }}>
               {filtered.length} source{filtered.length !== 1 ? "s" : ""}
             </span>
           </div>
         </div>
 
         {/* ── SOURCE CARDS ─────────────────────────────────────────────────── */}
-        {filtered.length > 0 ? (
-          filtered.map((source, i) => (
+        {displaySources.length > 0 ? (
+          displaySources.map((source, i) => (
             <SourceCard key={source.name} source={source} index={i} />
           ))
         ) : (
           <div className="empty-state">
             <div style={{ fontSize: 40, marginBottom: 16 }}>🔎</div>
             <h3 style={{ fontSize: 18, fontWeight: 700, color: "#1A1A18", marginBottom: 8 }}>No sources found</h3>
-            <p style={{ fontSize: 14 }}>Try a different search term or category filter.</p>
-            <button onClick={() => { setSearch(""); setFilter("All"); }} style={{ marginTop: 16, background: "#1A1A18", color: "#FAFAF8", border: "none", borderRadius: 10, padding: "10px 20px", cursor: "pointer", fontWeight: 700, fontSize: 13, fontFamily: "'DM Sans', sans-serif" }}>
+            <p style={{ fontSize: 14 }}>Try a different search term or filter.</p>
+            <button onClick={() => { setSearch(""); setSelectedStates([]); setFilter("Global"); }} style={{ marginTop: 16, background: "#1A1A18", color: "#FAFAF8", border: "none", borderRadius: 10, padding: "10px 20px", cursor: "pointer", fontWeight: 700, fontSize: 13, fontFamily: "'DM Sans', sans-serif" }}>
               Clear filters
+            </button>
+          </div>
+        )}
+
+        {/* View All Button for India */}
+        {filter === "India" && !showIndiaAll && search.length === 0 && filtered.length > 5 && (
+          <div style={{ textAlign: "center", marginTop: 16, marginBottom: 32 }}>
+            <button
+              onClick={() => setShowIndiaAll(true)}
+              style={{
+                background: "#fff", border: "1.5px solid #1A1A18", color: "#1A1A18",
+                borderRadius: 12, padding: "12px 24px", fontSize: 14, fontWeight: 700,
+                cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+                transition: "all 0.2s ease"
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "#1A1A18"; e.currentTarget.style.color = "#FAFAF8"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.color = "#1A1A18"; }}
+            >
+              View All {filtered.length} Sources ↓
             </button>
           </div>
         )}
@@ -699,7 +880,7 @@ export default function SourcesPage() {
               </div>
 
               <button
-                onClick={() => setShowModal(true)}
+                onClick={() => setShowApplyModal(true)}
                 style={{
                   background: "#FAFAF8", color: "#1A1A18",
                   border: "none", borderRadius: 14,

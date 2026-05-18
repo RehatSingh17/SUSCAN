@@ -165,8 +165,8 @@ export default function ResultPage() {
   const confidence = analysis.truth_score || 0;
 
   const getBadgeConfig = (v) => {
-    if (v === "verified")             return { bg: "#D1FAE5", color: "#065F46", border: "#6EE7B7", icon: "✓", glow: "rgba(16,185,129,0.15)" };
-    if (v === "misleading")           return { bg: "#FEE2E2", color: "#991B1B", border: "#FCA5A5", icon: "✗", glow: "rgba(239,68,68,0.12)" };
+    if (v === "verified") return { bg: "#D1FAE5", color: "#065F46", border: "#6EE7B7", icon: "✓", glow: "rgba(16,185,129,0.15)" };
+    if (v === "misleading") return { bg: "#FEE2E2", color: "#991B1B", border: "#FCA5A5", icon: "✗", glow: "rgba(239,68,68,0.12)" };
     if (v === "partially misleading") return { bg: "#FEF3C7", color: "#92400E", border: "#FDE68A", icon: "⚠", glow: "rgba(245,158,11,0.12)" };
     return { bg: "#E5E7EB", color: "#374151", border: "#D1D5DB", icon: "?", glow: "rgba(107,114,128,0.1)" };
   };
@@ -175,18 +175,98 @@ export default function ResultPage() {
 
   const getRecencyTag = (recency) => {
     switch (recency) {
-      case "recent":      return { label: "Recent",       dot: "#10B981", bg: "#D1FAE5", color: "#065F46", desc: "Within the last 7 days" };
-      case "not_recent":  return { label: "Not So Recent", dot: "#F59E0B", bg: "#FEF3C7", color: "#92400E", desc: "7–30 days ago" };
-      case "long_time_ago": return { label: "Outdated",   dot: "#EF4444", bg: "#FEE2E2", color: "#991B1B", desc: "More than 1 month ago" };
-      case "ongoing":     return { label: "Ongoing",      dot: "#3B82F6", bg: "#DBEAFE", color: "#1E40AF", desc: "Still developing" };
-      default:            return { label: "Unknown",      dot: "#9CA3AF", bg: "#E5E7EB", color: "#374151", desc: "Recency unclear" };
+      case "recent": return { label: "Recent", dot: "#10B981", bg: "#D1FAE5", color: "#065F46", desc: "Within the last 7 days" };
+      case "not_recent": return { label: "Not So Recent", dot: "#F59E0B", bg: "#FEF3C7", color: "#92400E", desc: "7–30 days ago" };
+      case "long_time_ago": return { label: "Outdated", dot: "#EF4444", bg: "#FEE2E2", color: "#991B1B", desc: "More than 1 month ago" };
+      case "ongoing": return { label: "Ongoing", dot: "#3B82F6", bg: "#DBEAFE", color: "#1E40AF", desc: "Still developing" };
+      default: return { label: "Unknown", dot: "#9CA3AF", bg: "#E5E7EB", color: "#374151", desc: "Recency unclear" };
     }
   };
 
   const recency = getRecencyTag(analysis.event_recency);
 
+  const handleDownloadPDF = () => {
+    import("jspdf").then(({ default: jsPDF }) => {
+      const doc = new jsPDF({ unit: "pt", format: "a4" });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 48;
+      const maxWidth = pageWidth - margin * 2;
+      let y = 60;
+
+      const addText = (text, fontSize, isBold, color = [30, 30, 28]) => {
+        doc.setFontSize(fontSize);
+        doc.setFont("helvetica", isBold ? "bold" : "normal");
+        doc.setTextColor(...color);
+        const lines = doc.splitTextToSize(String(text || ""), maxWidth);
+        doc.text(lines, margin, y);
+        y += lines.length * (fontSize * 1.4) + 6;
+      };
+
+      const addDivider = () => {
+        y += 8;
+        doc.setDrawColor(220, 220, 215);
+        doc.line(margin, y, pageWidth - margin, y);
+        y += 16;
+      };
+
+      // ── Header
+      doc.setFillColor(26, 26, 24);
+      doc.roundedRect(margin - 16, y - 20, maxWidth + 32, 70, 10, 10, "F");
+      doc.setTextColor(250, 250, 248);
+      doc.setFontSize(22);
+      doc.setFont("helvetica", "bold");
+      doc.text("SUSCAN — Fact Check Report", margin, y + 10);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(180, 180, 170);
+      doc.text(`Generated on ${new Date().toLocaleString()}`, margin, y + 30);
+      y += 80;
+
+      // ── Final Verdict
+      addText("FINAL VERDICT", 9, true, [150, 148, 140]);
+      addText(verdict.toUpperCase(), 20, true);
+      addDivider();
+
+      // ── Event Recency
+      addText("EVENT RECENCY", 9, true, [150, 148, 140]);
+      addText(`${recency.label} — ${recency.desc}`, 14, false);
+      addDivider();
+
+      // ── Truth Score
+      addText("TRUTH SCORE", 9, true, [150, 148, 140]);
+      addText(`${confidence}%  (${confidence >= 70 ? "High agreement" : confidence >= 40 ? "Moderate agreement" : "Low agreement"})`, 14, false);
+      addDivider();
+
+      // ── AI Reasoning
+      addText("AI REASONING", 9, true, [150, 148, 140]);
+      addText(analysis.reasoning || "No reasoning available.", 11, false, [80, 80, 75]);
+      addDivider();
+
+      // ── Sources
+      addText("SOURCES USED", 9, true, [150, 148, 140]);
+      if (searchResults.length === 0) {
+        addText("No sources found.", 11, false, [80, 80, 75]);
+      } else {
+        searchResults.forEach((src, i) => {
+          addText(`${i + 1}. ${src.source || "Unknown Source"} — ${src.title || ""}`, 11, false, [60, 60, 55]);
+          if (src.url) {
+            doc.setTextColor(59, 130, 246);
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "normal");
+            const urlLines = doc.splitTextToSize(src.url, maxWidth - 20);
+            doc.text(urlLines, margin + 16, y);
+            y += urlLines.length * 14 + 4;
+          }
+          y += 4;
+        });
+      }
+
+      doc.save("suscan-fact-check.pdf");
+    });
+  };
+
   const scoreColor = confidence >= 70 ? "#065F46" : confidence >= 40 ? "#92400E" : "#991B1B";
-  const scoreBg    = confidence >= 70 ? "#D1FAE5" : confidence >= 40 ? "#FEF3C7" : "#FEE2E2";
+  const scoreBg = confidence >= 70 ? "#D1FAE5" : confidence >= 40 ? "#FEF3C7" : "#FEE2E2";
 
   // ── Empty state ──────────────────────────────────────────────────────────────
   if (!result || !data) {
@@ -340,9 +420,25 @@ export default function ResultPage() {
           transform: visible ? "translateY(0)" : "translateY(20px)",
           transition: "opacity 0.6s ease, transform 0.6s ease",
         }}>
-          <button className="back-btn" onClick={() => navigate("/")}>
-            ← Back
-          </button>
+          <div style={{ display: "flex", gap: 12, marginBottom: 32, alignItems: "center" }}>
+            <button className="back-btn" onClick={() => navigate("/")} style={{ marginBottom: 0 }}>
+              ← Back
+            </button>
+            <button
+              onClick={handleDownloadPDF}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 8,
+                background: "#fff", border: "1.5px solid #1A1A18",
+                borderRadius: 10, padding: "9px 18px",
+                fontSize: 13, fontWeight: 700, color: "#1A1A18",
+                cursor: "pointer", transition: "all 0.2s ease",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "#1A1A18"; e.currentTarget.style.color = "#FAFAF8"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.color = "#1A1A18"; }}
+            >
+              ↓ Download Report
+            </button>
+          </div>
 
           {/* Floating accent blobs */}
           <div style={{ position: "relative", marginBottom: 48 }}>
@@ -370,95 +466,74 @@ export default function ResultPage() {
 
         {/* ── VERDICT CARD ────────────────────────────────────────────────────── */}
         <FadeSection delay={80}>
-          <div style={{
-            background: "#1A1A18",
-            borderRadius: 28,
-            padding: "40px 36px",
-            marginBottom: 28,
-            position: "relative",
-            overflow: "hidden",
-            boxShadow: `0 24px 64px ${badge.glow}, 0 4px 16px rgba(0,0,0,0.1)`,
-          }}>
-            {/* grid bg */}
-            <div style={{
-              position: "absolute", inset: 0,
-              backgroundImage: "linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)",
-              backgroundSize: "36px 36px", pointerEvents: "none",
-            }} />
-
-            {/* Glow blob */}
-            <div style={{
-              position: "absolute", top: -40, right: -40, width: 200, height: 200,
-              borderRadius: "50%", background: badge.glow,
-              filter: "blur(60px)", pointerEvents: "none",
-            }} />
-
-            <div style={{ position: "relative", display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
+          <div className="glass-card" style={{ marginBottom: 28 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
 
               {/* LEFT — verdict */}
               <div>
-                <div className="tip-wrap" style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: "rgba(255,255,255,0.35)", marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
-                  FINAL VERDICT <span style={{ opacity: 0.5 }}>ⓘ</span>
-                  <span className="tip-box">Verified, misleading, or unclear — based on trusted source evidence</span>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: "#AEADA6", marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
+                  FINAL VERDICT
                 </div>
                 <div style={{
-                  display: "inline-flex", alignItems: "center", gap: 12,
+                  display: "inline-flex", alignItems: "center", gap: 14,
                   background: badge.bg, color: badge.color,
-                  border: `2px solid ${badge.border}`,
-                  padding: "12px 22px", borderRadius: 16,
-                  fontSize: 22, fontWeight: 800, letterSpacing: "-0.3px",
+                  border: `1.5px solid ${badge.border}`,
+                  padding: "16px 28px", borderRadius: 20,
+                  fontSize: 24, fontWeight: 800, letterSpacing: "-0.5px",
+                  boxShadow: `0 8px 24px ${badge.glow}, inset 0 2px 4px rgba(255,255,255,0.4)`
                 }}>
-                  <span style={{ fontSize: 20 }}>{badge.icon}</span>
+                  <span style={{ fontSize: 24 }}>{badge.icon}</span>
                   {verdict.toUpperCase()}
                 </div>
               </div>
 
               {/* CENTRE — recency */}
               <div style={{ textAlign: "center" }}>
-                <div className="tip-wrap" style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: "rgba(255,255,255,0.35)", marginBottom: 14, justifyContent: "center", display: "flex", alignItems: "center", gap: 6 }}>
-                  EVENT RECENCY <span style={{ opacity: 0.5 }}>ⓘ</span>
-                  <span className="tip-box">How recent the underlying event is based on source article dates</span>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: "#AEADA6", marginBottom: 14, justifyContent: "center", display: "flex", alignItems: "center", gap: 6 }}>
+                  EVENT RECENCY
                 </div>
                 <div style={{
-                  display: "inline-flex", alignItems: "center", gap: 10,
+                  display: "inline-flex", alignItems: "center", gap: 14,
                   background: recency.bg, color: recency.color,
                   border: `1.5px solid ${recency.dot}40`,
-                  borderRadius: 14, padding: "12px 20px",
+                  borderRadius: 20, padding: "16px 28px",
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.03), inset 0 2px 4px rgba(255,255,255,0.4)"
                 }}>
-                  <span className="pulse" style={{ width: 9, height: 9, borderRadius: "50%", background: recency.dot, display: "inline-block", flexShrink: 0 }} />
-                  <div>
-                    <div style={{ fontSize: 15, fontWeight: 800, lineHeight: 1.2 }}>{recency.label}</div>
-                    <div style={{ fontSize: 11, opacity: 0.75, marginTop: 2 }}>{recency.desc}</div>
+                  <span className="pulse" style={{ width: 10, height: 10, borderRadius: "50%", background: recency.dot, display: "inline-block", flexShrink: 0 }} />
+                  <div style={{ textAlign: "left" }}>
+                    <div style={{ fontSize: 17, fontWeight: 800, lineHeight: 1.2 }}>{recency.label}</div>
+                    <div style={{ fontSize: 12, opacity: 0.75, marginTop: 4 }}>{recency.desc}</div>
                   </div>
                 </div>
               </div>
 
               {/* RIGHT — truth score ring */}
               <div style={{ textAlign: "right" }}>
-                <div className="tip-wrap" style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: "rgba(255,255,255,0.35)", marginBottom: 14, justifyContent: "flex-end", display: "flex", alignItems: "center", gap: 6 }}>
-                  TRUTH SCORE <span style={{ opacity: 0.5 }}>ⓘ</span>
-                  <span className="tip-box" style={{ left: "auto", right: 0, transform: "none" }}>0 = no support, 100 = fully verified by sources</span>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: "#AEADA6", marginBottom: 14, justifyContent: "flex-end", display: "flex", alignItems: "center", gap: 6 }}>
+                  TRUTH SCORE
                 </div>
-                <div style={{ display: "inline-flex", alignItems: "center", gap: 16 }}>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 20 }}>
                   {/* SVG ring */}
-                  <svg width="72" height="72" viewBox="0 0 100 100" style={{ transform: "rotate(-90deg)", flexShrink: 0 }}>
-                    <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="10" />
-                    <circle
-                      cx="50" cy="50" r="40"
-                      fill="none"
-                      stroke={badge.border}
-                      strokeWidth="10"
-                      strokeLinecap="round"
-                      strokeDasharray="251.2"
-                      strokeDashoffset={251.2 - (251.2 * confidence) / 100}
-                      className="score-ring"
-                    />
-                  </svg>
+                  <div style={{ position: "relative", width: 76, height: 76 }}>
+                    <svg width="76" height="76" viewBox="0 0 100 100" style={{ transform: "rotate(-90deg)" }}>
+                      <circle cx="50" cy="50" r="42" fill="none" stroke="#F7F6F2" strokeWidth="8" />
+                      <circle
+                        cx="50" cy="50" r="42"
+                        fill="none"
+                        stroke={badge.color}
+                        strokeWidth="8"
+                        strokeLinecap="round"
+                        strokeDasharray="263.89"
+                        strokeDashoffset={263.89 - (263.89 * confidence) / 100}
+                        className="score-ring"
+                      />
+                    </svg>
+                  </div>
                   <div style={{ textAlign: "left" }}>
-                    <div style={{ fontSize: 38, fontWeight: 800, letterSpacing: "-1px", color: "#FAFAF8", lineHeight: 1 }}>
+                    <div style={{ fontSize: 48, fontWeight: 800, letterSpacing: "-2px", color: "#1A1A18", lineHeight: 0.9 }}>
                       <ScoreCounter target={confidence} />%
                     </div>
-                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", marginTop: 4 }}>
+                    <div style={{ fontSize: 13, color: "#888780", marginTop: 6, fontWeight: 600 }}>
                       {confidence >= 70 ? "High agreement" : confidence >= 40 ? "Moderate agreement" : "Low agreement"}
                     </div>
                   </div>
@@ -486,51 +561,11 @@ export default function ResultPage() {
             </div>
 
             {/* Reasoning */}
-            <div style={{ marginBottom: 28 }}>
+            <div>
               <div className="section-eyebrow">AI REASONING</div>
               <div style={{ background: "#FAFAF8", border: "1px solid #EEEDE8", borderRadius: 16, padding: "20px 22px", lineHeight: 1.85, fontSize: 15, color: "#444" }}>
                 {analysis.reasoning || "No reasoning available"}
               </div>
-            </div>
-
-            {/* Tags row */}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 28 }}>
-              <span className="tag-chip">
-                🕒 {analysis.event_recency || "unknown"}
-              </span>
-              <span className="tag-chip" style={analysis.bias_detected ? { background: "#FEF3C7", color: "#92400E", borderColor: "#FDE68A" } : {}}>
-                {analysis.bias_detected ? "⚠ Bias Detected" : "✓ No Bias"}
-              </span>
-              {analysis.bias_types?.map((bias, i) => (
-                <span key={i} className="tag-chip" style={{ background: "#FEF3C7", color: "#92400E", borderColor: "#FDE68A" }}>
-                  {bias}
-                </span>
-              ))}
-            </div>
-
-            {/* Missing context */}
-            <div>
-              <div className="section-eyebrow">MISSING CONTEXT</div>
-              <div style={{ background: "#FAFAF8", border: "1px solid #EEEDE8", borderRadius: 16, padding: "20px 22px", lineHeight: 1.85, fontSize: 15, color: "#666" }}>
-                {analysis.missing_context || "None identified"}
-              </div>
-            </div>
-          </div>
-        </FadeSection>
-
-        {/* ── CLEANED TEXT ────────────────────────────────────────────────────── */}
-        <FadeSection delay={160}>
-          <div className="glass-card">
-            <div className="divider" />
-            <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 26, marginBottom: 20, color: "#1A1A18" }}>
-              Cleaned Text
-            </h2>
-            <div style={{
-              background: "#FAFAF8", border: "1px solid #EEEDE8", borderRadius: 16,
-              padding: "20px 22px", lineHeight: 1.85, whiteSpace: "pre-wrap",
-              fontSize: 14, color: "#555", fontFamily: "monospace",
-            }}>
-              {data.cleaned_text}
             </div>
           </div>
         </FadeSection>

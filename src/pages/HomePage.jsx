@@ -450,7 +450,7 @@ export default function HomePage() {
       <main style={{ maxWidth: 760, margin: "0 auto", padding: "0 24px 120px" }}>
 
         {/* ── HERO ─────────────────────────────────────────────────────────── */}
-        <div style={{ textAlign: "center", padding: "80px 0 52px", position: "relative" }}>
+        <div style={{ textAlign: "center", padding: "16px 0 0", position: "relative" }}>
           <div className="blob1" style={{ position: "absolute", top: 60, left: "4%", width: 80, height: 80, borderRadius: "50%", background: "linear-gradient(135deg,#D1FAE5,#A7F3D0)", opacity: 0.55, filter: "blur(3px)", pointerEvents: "none" }} />
           <div className="blob2" style={{ position: "absolute", top: 30, right: "6%", width: 56, height: 56, borderRadius: "50%", background: "linear-gradient(135deg,#FEF3C7,#FDE68A)", opacity: 0.65, filter: "blur(2px)", pointerEvents: "none" }} />
           <div className="blob3" style={{ position: "absolute", bottom: 40, right: "18%", width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg,#FEE2E2,#FECACA)", opacity: 0.5, filter: "blur(1px)", pointerEvents: "none" }} />
@@ -478,7 +478,6 @@ export default function HomePage() {
                 </span>
               </span>
             ))}
-            <br />
             <span className="word-reveal" style={{ marginRight: "0.22em" }}>
               <span className={`word-inner ${visible ? "in" : ""}`} style={{ transitionDelay: "380ms", fontStyle: "italic", color: "#888780", fontWeight: 300 }}>
                 Find out.
@@ -487,29 +486,16 @@ export default function HomePage() {
           </h1>
 
           <p style={{
-            fontSize: 17, color: "#666460", lineHeight: 1.75,
-            maxWidth: 480, margin: "0 auto 40px",
+            fontSize: 14, color: "#666460", lineHeight: 1.75,
+            maxWidth: "100%", margin: "0 auto 24px",
             opacity: visible ? 1 : 0,
             transform: visible ? "translateY(0)" : "translateY(16px)",
             transition: "all 0.6s ease 550ms",
           }}>
-            Paste a headline or upload an image. We check it against 170+ trusted sources and deliver a verdict in seconds.
+            Paste a headline or upload an image. We check it against 170+ trusted sources and deliver a verdict.
           </p>
 
-          <div style={{
-            display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap",
-            opacity: visible ? 1 : 0, transition: "opacity 0.6s ease 750ms",
-          }}>
-            {[
-              { label: "✓ VERIFIED",             bg: "#D1FAE5", color: "#065F46" },
-              { label: "⚠ PARTIALLY MISLEADING", bg: "#FEF3C7", color: "#92400E" },
-              { label: "✗ MISLEADING",            bg: "#FEE2E2", color: "#991B1B" },
-            ].map(v => (
-              <span key={v.label} style={{ display: "inline-flex", alignItems: "center", background: v.bg, color: v.color, borderRadius: 99, padding: "5px 14px", fontSize: 11, fontWeight: 800, letterSpacing: "0.04em" }}>
-                {v.label}
-              </span>
-            ))}
-          </div>
+
         </div>
 
         {/* ── TRUST TICKER ─────────────────────────────────────────────────── */}
@@ -660,6 +646,21 @@ export default function HomePage() {
               ? `Signed in as ${user.displayName ?? user.email}`
               : "No account needed · Sign in to save history"}
           </p>
+
+          <div style={{
+            display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap",
+            marginTop: 24, opacity: visible ? 1 : 0, transition: "opacity 0.6s ease 750ms",
+          }}>
+            {[
+              { label: "✓ VERIFIED",             bg: "#D1FAE5", color: "#065F46" },
+              { label: "⚠ PARTIALLY MISLEADING", bg: "#FEF3C7", color: "#92400E" },
+              { label: "✗ MISLEADING",            bg: "#FEE2E2", color: "#991B1B" },
+            ].map(v => (
+              <span key={v.label} style={{ display: "inline-flex", alignItems: "center", background: v.bg, color: v.color, borderRadius: 99, padding: "5px 14px", fontSize: 11, fontWeight: 800, letterSpacing: "0.04em" }}>
+                {v.label}
+              </span>
+            ))}
+          </div>
         </div>
 
         {/* ── HOW IT WORKS STRIP ───────────────────────────────────────────── */}
@@ -732,7 +733,7 @@ export default function HomePage() {
               )}
 
               {/* Real history rows */}
-              {!historyLoading && historyData.slice(0, 5).map((h, i) => {
+              {!historyLoading && historyData.slice(0, 3).map((h, i) => {
                 const { verdict, pill, icon, timeLabel } = getEntryMeta(h);
                 const rowId = h.id ?? i;
                 const isDeleting = deletingId === rowId;

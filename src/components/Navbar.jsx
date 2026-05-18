@@ -58,10 +58,11 @@ export default function Navbar() {
   };
 
   return (
+    <>
     <nav style={{
       display: "flex", alignItems: "center", justifyContent: "space-between",
       padding: "16px 32px", borderBottom: "1px solid #EEEDE8",
-      background: "#FAFAF8", position: "sticky", top: 0, zIndex: 10,
+      background: "#FAFAF8", position: "fixed", top: 0, left: 0, right: 0, zIndex: 1000,
     }}>
       <div
         onClick={() => navigate("/")}
@@ -71,7 +72,7 @@ export default function Navbar() {
       </div>
 
       <div style={{ display: "flex", gap: 28 }}>
-        {[["Home", "/"], ["History", "/history"], ["Sources", "/sources"], ["About", "/about"]].map(([label, path]) => (
+        {[["Home", "/"], ["About", "/about"], ["Sources", "/sources"], ["History", "/history"]].map(([label, path]) => (
           <button
             key={label}
             onClick={() => navigate(path)}
@@ -153,11 +154,11 @@ export default function Navbar() {
               >Home</button>
               
               <button
-                onClick={() => { setMenuOpen(false); navigate("/history"); }}
+                onClick={() => { setMenuOpen(false); navigate("/about"); }}
                 style={{ width: "100%", padding: "8px 16px", background: "none", border: "none", textAlign: "left", fontSize: 14, color: "#1A1A18", cursor: "pointer" }}
                 onMouseEnter={(e) => e.target.style.background = "#F7F6F2"}
                 onMouseLeave={(e) => e.target.style.background = "none"}
-              >History</button>
+              >About</button>
               
               <button
                 onClick={() => { setMenuOpen(false); navigate("/sources"); }}
@@ -167,11 +168,11 @@ export default function Navbar() {
               >Sources</button>
               
               <button
-                onClick={() => { setMenuOpen(false); navigate("/about"); }}
+                onClick={() => { setMenuOpen(false); navigate("/history"); }}
                 style={{ width: "100%", padding: "8px 16px", background: "none", border: "none", textAlign: "left", fontSize: 14, color: "#1A1A18", cursor: "pointer" }}
                 onMouseEnter={(e) => e.target.style.background = "#F7F6F2"}
                 onMouseLeave={(e) => e.target.style.background = "none"}
-              >About</button>
+              >History</button>
 
               <div style={{ height: 1, background: "#EEEDE8", margin: "8px 0" }} />
               
@@ -196,5 +197,7 @@ export default function Navbar() {
         >Sign in</button>
       )}
     </nav>
+    <div style={{ height: "65px" }} />
+    </>
   );
 }

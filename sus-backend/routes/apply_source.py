@@ -6,6 +6,8 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 router = APIRouter()
 
@@ -26,7 +28,7 @@ async def apply_source(form: ApplicationForm):
         smtp_port     = int(os.getenv("SMTP_PORT", 587))
         smtp_user     = os.getenv("SMTP_USER")   # your Gmail that SENDS
         smtp_password = os.getenv("SMTP_PASSWORD") # Gmail App Password
-        to_email      = "rakshamshar@gmail.com"
+        to_email      = "rehatsinghjagirdar@gmail.com"
 
         # ── Build HTML email body ───────────────────────────────────────
         html_body = f"""
