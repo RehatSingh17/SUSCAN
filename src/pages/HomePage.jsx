@@ -3,12 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { useAuth } from "../context/AuthContext";
 import { analyseText, analyseImage } from "../api";
-
-const HISTORY = [
-  { type: "T", claim: '"PTI rally attendance exceeded 2 million, says party spokesperson"', label: "Likely false", labelType: "danger", time: "2h ago" },
-  { type: "I", claim: "Image: Article screenshot — Sindh flood relief funds misused", label: "Bias detected", labelType: "warn", time: "5h ago" },
-  { type: "T", claim: '"Pakistan cuts interest rate to 13% — State Bank announcement"', label: "Verified", labelType: "success", time: "1d ago" },
-];
+import { saveSearchHistory, getUserHistory, deleteHistoryItem } from "../services/historyService";
 
 const PILL = {
   danger:  { bg: "#FEE2E2", color: "#991B1B", icon: "✗" },
@@ -60,19 +55,23 @@ export default function HomePage() {
   const { user }  = useAuth();
   const fileRef   = useRef(null);
 
-  const [mode, setMode]               = useState("Text");
-  const [text, setText]               = useState("");
-  const [image, setImage]             = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
-  const [focused, setFocused]         = useState(false);
-  const [loading, setLoading]         = useState(false);
-  const [loadingStep, setLoadingStep] = useState(0);
-  const [error, setError]             = useState("");
-  const [visible, setVisible]         = useState(false);
+  const [mode, setMode]                     = useState("Text");
+  const [text, setText]                     = useState("");
+  const [image, setImage]                   = useState(null);
+  const [imagePreview, setImagePreview]     = useState(null);
+  const [focused, setFocused]               = useState(false);
+  const [loading, setLoading]               = useState(false);
+  const [loadingStep, setLoadingStep]       = useState(0);
+  const [error, setError]                   = useState("");
+  const [visible, setVisible]               = useState(false);
   const [showFocusModal, setShowFocusModal] = useState(false);
   const [selectedRegions, setSelectedRegions] = useState([]);
-  const [activeTab, setActiveTab]     = useState(0);
-  const [tickerPos, setTickerPos]     = useState(0);
+  const [activeTab, setActiveTab]           = useState(0);
+  const [tickerPos, setTickerPos]           = useState(0);
+  const [historyData, setHistoryData]       = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [deletingId, setDeletingId]         = useState(null);
+  const [hoveredRowId, setHoveredRowId]     = useState(null);
 
   // Ticker animation
   useEffect(() => {
@@ -89,6 +88,21 @@ export default function HomePage() {
     document.body.style.overflow = showFocusModal ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
   }, [showFocusModal]);
+
+  // Load history only for logged-in users
+  useEffect(() => {
+    async function loadHistory() {
+      if (!user) {
+        setHistoryData([]);
+        return;
+      }
+      setHistoryLoading(true);
+      const data = await getUserHistory(user.uid);
+      setHistoryData(data);
+      setHistoryLoading(false);
+    }
+    loadHistory();
+  }, [user]);
 
   const toggleRegion = (region) =>
     setSelectedRegions(prev =>
@@ -126,6 +140,22 @@ export default function HomePage() {
       const result = mode === "Text"
         ? await analyseText(text.trim(), userId, selectedRegions)
         : await analyseImage(image, userId, selectedRegions);
+
+      // Only save history for logged-in users
+      if (user) {
+        await saveSearchHistory({
+          userId: user.uid,
+          inputType: mode.toLowerCase(),
+          query: mode === "Text" ? text.trim() : image?.name,
+          result,
+          focusRegions: selectedRegions,
+        });
+
+        // Refresh history list after saving
+        const updated = await getUserHistory(user.uid);
+        setHistoryData(updated);
+      }
+
       navigate("/result", { state: { result } });
     } catch {
       setError("Something went wrong. Please try again.");
@@ -136,11 +166,42 @@ export default function HomePage() {
     }
   };
 
+  const handleDelete = async (e, historyId) => {
+    e.stopPropagation(); // prevent row click / navigation
+    if (!historyId || deletingId) return;
+    setDeletingId(historyId);
+    try {
+      await deleteHistoryItem(historyId);
+      setHistoryData(prev => prev.filter(h => (h.id ?? h) !== historyId));
+    } catch {
+      // silently fail — could add a toast here
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const charCount  = text.trim() ? text.length : 0;
   const canSubmit  = mode === "Text" ? (charCount > 0 && charCount <= 10000) : image !== null;
   const groupCounts = REGION_GROUPS.map(g =>
     g.regions.filter(r => selectedRegions.includes(r)).length
   );
+
+  // Derive verdict label info from a history entry
+  function getEntryMeta(h) {
+    const verdict = h.result?.data?.analysis?.final_verdict ?? "unclear";
+    const labelType =
+      verdict === "verified"   ? "success" :
+      verdict === "misleading" ? "danger"  : "warn";
+    const pill = PILL[labelType];
+    const icon = ICON_STYLE[h.inputType === "image" ? "I" : "T"];
+    const timeLabel = h.createdAt?.toDate
+      ? h.createdAt.toDate().toLocaleDateString("en-IN", {
+          day: "numeric", month: "short",
+          hour: "2-digit", minute: "2-digit",
+        })
+      : "just now";
+    return { verdict, pill, icon, timeLabel };
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: "#FAFAF8", fontFamily: "'DM Sans', sans-serif", color: "#1A1A18", overflowX: "hidden" }}>
@@ -156,15 +217,12 @@ export default function HomePage() {
           alignItems: "center", justifyContent: "center",
           animation: "fadeInOverlay 0.3s ease",
         }}>
-          {/* Glow blob */}
           <div style={{ position: "absolute", width: 300, height: 300, borderRadius: "50%", background: "radial-gradient(circle, rgba(16,185,129,0.15) 0%, transparent 70%)", pointerEvents: "none" }} />
 
-          {/* Logo mark */}
           <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.15em", color: "rgba(255,255,255,0.3)", marginBottom: 40 }}>
             SUSCAN · VERIFYING
           </div>
 
-          {/* Steps */}
           <div style={{ display: "flex", flexDirection: "column", gap: 18, width: 280 }}>
             {LOADING_STEPS.map((step, i) => {
               const done    = loadingStep > i;
@@ -211,28 +269,23 @@ export default function HomePage() {
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=DM+Serif+Display:ital@0;1&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-        /* ── Word reveal ── */
         .word-reveal { overflow: hidden; display: inline-block; }
         .word-inner  { display: inline-block; transform: translateY(110%); transition: transform 0.75s cubic-bezier(0.16,1,0.3,1); }
         .word-inner.in { transform: translateY(0); }
 
-        /* ── Fade up ── */
         .fade-up { opacity: 0; transform: translateY(20px); transition: opacity 0.6s cubic-bezier(0.16,1,0.3,1), transform 0.6s cubic-bezier(0.16,1,0.3,1); }
         .fade-up.in { opacity: 1; transform: translateY(0); }
 
-        /* ── Floating blobs ── */
         @keyframes float  { 0%,100%{transform:translateY(0) rotate(0deg)} 50%{transform:translateY(-12px) rotate(4deg)} }
         @keyframes float2 { 0%,100%{transform:translateY(0) rotate(0deg)} 50%{transform:translateY(-8px) rotate(-3deg)} }
         .blob1 { animation: float  7s ease-in-out infinite; }
         .blob2 { animation: float2 9s ease-in-out infinite 2s; }
         .blob3 { animation: float  6s ease-in-out infinite 4s; }
 
-        /* ── Trust ticker ── */
         @keyframes tickerScroll { from{transform:translateX(0)} to{transform:translateX(-50%)} }
         .ticker-track { display: flex; gap: 0; animation: tickerScroll 22s linear infinite; width: max-content; }
         .ticker-track:hover { animation-play-state: paused; }
 
-        /* ── Input card ── */
         .input-card {
           background: #fff; border: 1.5px solid #E2E0D8; border-radius: 24px;
           padding: 28px; transition: all 0.4s cubic-bezier(0.16,1,0.3,1);
@@ -244,7 +297,6 @@ export default function HomePage() {
           transform: translateY(-3px);
         }
 
-        /* ── Mode tabs ── */
         .mode-btn {
           background: transparent; border: 1.5px solid #E2E0D8; border-radius: 12px;
           padding: 8px 18px; font-size: 13px; font-family: 'DM Sans', sans-serif;
@@ -253,12 +305,10 @@ export default function HomePage() {
         }
         .mode-btn:hover:not(.active) { border-color: #C5C3BB; color: #1A1A18; background: #F7F6F2; }
         .mode-btn.active {
-          background: #1A1A18; color: #FAFAF8;
-          border-color: #1A1A18;
+          background: #1A1A18; color: #FAFAF8; border-color: #1A1A18;
           box-shadow: 0 4px 14px rgba(26,26,24,0.18);
         }
 
-        /* ── Focus btn ── */
         .focus-btn {
           display: flex; align-items: center; gap: 7px;
           background: transparent; border: 1.5px solid #E2E0D8;
@@ -273,7 +323,6 @@ export default function HomePage() {
           box-shadow: 0 4px 14px rgba(26,26,24,0.18);
         }
 
-        /* ── Analyse button ── */
         .analyse-btn {
           background: #1A1A18; color: #FAFAF8; border: none;
           border-radius: 14px; padding: 13px 26px;
@@ -287,7 +336,6 @@ export default function HomePage() {
         .analyse-btn:active:not(:disabled) { transform: scale(0.97); }
         .analyse-btn:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: none; }
 
-        /* ── Sample pills ── */
         .sample-pill {
           background: #F7F6F2; border: 1px solid #E5E3DC;
           border-radius: 8px; padding: 5px 10px;
@@ -297,7 +345,6 @@ export default function HomePage() {
         }
         .sample-pill:hover { border-color: #1A1A18; color: #1A1A18; background: #EEEDE8; }
 
-        /* ── Drop zone ── */
         .drop-zone {
           border: 2px dashed #DDD; border-radius: 16px;
           padding: 44px 20px; text-align: center; cursor: pointer;
@@ -306,20 +353,44 @@ export default function HomePage() {
         .drop-zone:hover { border-color: #1A1A18; background: #F7F6F2; }
         .drop-zone.has-image { border-style: solid; border-color: #EEEDE8; padding: 12px; }
 
-        /* ── History card ── */
         .history-card { background: #fff; border: 1.5px solid #E2E0D8; border-radius: 20px; padding: 6px; }
         .history-row {
-          display: flex; align-items: center; gap: 14; padding: 14px 14px;
+          display: flex; align-items: center; gap: 14px; padding: 14px 14px;
           border-radius: 14px; cursor: pointer;
           transition: all 0.22s ease;
           border-bottom: 1px solid #F2F1EC;
+          position: relative;
         }
         .history-row:last-child { border-bottom: none; }
         .history-row:hover { background: #F7F6F2; }
         .history-arrow { opacity: 0; transform: translateX(-6px); transition: all 0.2s ease; color: #AEADA6; font-size: 14px; }
         .history-row:hover .history-arrow { opacity: 1; transform: translateX(0); color: #1A1A18; }
 
-        /* ── Region modal ── */
+        .delete-btn {
+          opacity: 0;
+          width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
+          background: transparent; border: 1.5px solid transparent;
+          display: flex; align-items: center; justify-content: center;
+          cursor: pointer; font-size: 14px; color: #AEADA6;
+          transition: all 0.18s ease;
+          font-family: 'DM Sans', sans-serif;
+        }
+        .history-row:hover .delete-btn {
+          opacity: 1;
+        }
+        .delete-btn:hover {
+          background: #FEE2E2 !important;
+          border-color: #FECACA !important;
+          color: #991B1B !important;
+        }
+        .delete-btn.deleting {
+          opacity: 1;
+          background: #FEF2F2;
+          border-color: #FECACA;
+          color: #991B1B;
+          animation: spin 0.7s linear infinite;
+        }
+
         .group-tab {
           flex: 1; background: none; border: none; font-family: 'DM Sans', sans-serif;
           font-size: 13px; font-weight: 600; color: #888780; cursor: pointer;
@@ -365,6 +436,13 @@ export default function HomePage() {
         @keyframes spin  { to{transform:rotate(360deg)} }
         @keyframes blink { 0%{opacity:0} 50%{opacity:1} 100%{opacity:0} }
         @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.6;transform:scale(1.4)} }
+        @keyframes shimmer { 0%{background-position:-400px 0} 100%{background-position:400px 0} }
+        .skeleton {
+          background: linear-gradient(90deg, #F0EFEA 25%, #E5E3DC 50%, #F0EFEA 75%);
+          background-size: 400px 100%;
+          animation: shimmer 1.4s ease infinite;
+          border-radius: 8px;
+        }
       `}</style>
 
       <Navbar />
@@ -373,13 +451,10 @@ export default function HomePage() {
 
         {/* ── HERO ─────────────────────────────────────────────────────────── */}
         <div style={{ textAlign: "center", padding: "80px 0 52px", position: "relative" }}>
-
-          {/* Floating blobs */}
-          <div className="blob1" style={{ position: "absolute", top: 60,  left: "4%",  width: 80, height: 80, borderRadius: "50%", background: "linear-gradient(135deg,#D1FAE5,#A7F3D0)", opacity: 0.55, filter: "blur(3px)", pointerEvents: "none" }} />
-          <div className="blob2" style={{ position: "absolute", top: 30,  right: "6%", width: 56, height: 56, borderRadius: "50%", background: "linear-gradient(135deg,#FEF3C7,#FDE68A)", opacity: 0.65, filter: "blur(2px)", pointerEvents: "none" }} />
+          <div className="blob1" style={{ position: "absolute", top: 60, left: "4%", width: 80, height: 80, borderRadius: "50%", background: "linear-gradient(135deg,#D1FAE5,#A7F3D0)", opacity: 0.55, filter: "blur(3px)", pointerEvents: "none" }} />
+          <div className="blob2" style={{ position: "absolute", top: 30, right: "6%", width: 56, height: 56, borderRadius: "50%", background: "linear-gradient(135deg,#FEF3C7,#FDE68A)", opacity: 0.65, filter: "blur(2px)", pointerEvents: "none" }} />
           <div className="blob3" style={{ position: "absolute", bottom: 40, right: "18%", width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg,#FEE2E2,#FECACA)", opacity: 0.5, filter: "blur(1px)", pointerEvents: "none" }} />
 
-          {/* Live badge */}
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 8,
             background: "#fff", border: "1px solid #E2E0D8",
@@ -395,7 +470,6 @@ export default function HomePage() {
             AI-POWERED · INDIA & BEYOND
           </div>
 
-          {/* Headline */}
           <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "clamp(38px, 7vw, 62px)", lineHeight: 1.1, letterSpacing: "-1.5px", marginBottom: 22 }}>
             {["Is", "it", "true?"].map((word, i) => (
               <span key={i} className="word-reveal" style={{ marginRight: "0.22em" }}>
@@ -422,15 +496,14 @@ export default function HomePage() {
             Paste a headline or upload an image. We check it against 170+ trusted sources and deliver a verdict in seconds.
           </p>
 
-          {/* Verdict sample chips */}
           <div style={{
             display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap",
             opacity: visible ? 1 : 0, transition: "opacity 0.6s ease 750ms",
           }}>
             {[
-              { label: "✓ VERIFIED",              bg: "#D1FAE5", color: "#065F46" },
-              { label: "⚠ PARTIALLY MISLEADING",  bg: "#FEF3C7", color: "#92400E" },
-              { label: "✗ MISLEADING",             bg: "#FEE2E2", color: "#991B1B" },
+              { label: "✓ VERIFIED",             bg: "#D1FAE5", color: "#065F46" },
+              { label: "⚠ PARTIALLY MISLEADING", bg: "#FEF3C7", color: "#92400E" },
+              { label: "✗ MISLEADING",            bg: "#FEE2E2", color: "#991B1B" },
             ].map(v => (
               <span key={v.label} style={{ display: "inline-flex", alignItems: "center", background: v.bg, color: v.color, borderRadius: 99, padding: "5px 14px", fontSize: 11, fontWeight: 800, letterSpacing: "0.04em" }}>
                 {v.label}
@@ -442,10 +515,8 @@ export default function HomePage() {
         {/* ── TRUST TICKER ─────────────────────────────────────────────────── */}
         <div className={`fade-up ${visible ? "in" : ""}`} style={{ transitionDelay: "200ms", marginBottom: 32, overflow: "hidden" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 0, borderTop: "1px solid #EEEDE8", borderBottom: "1px solid #EEEDE8", padding: "12px 0", position: "relative" }}>
-            {/* Fade masks */}
             <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 60, background: "linear-gradient(to right, #FAFAF8, transparent)", zIndex: 2, pointerEvents: "none" }} />
             <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 60, background: "linear-gradient(to left, #FAFAF8, transparent)", zIndex: 2, pointerEvents: "none" }} />
-
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: "#AEADA6", whiteSpace: "nowrap", padding: "0 20px", flexShrink: 0, zIndex: 3 }}>
               SOURCES
             </div>
@@ -511,8 +582,6 @@ export default function HomePage() {
                     }}
                   />
                 </div>
-
-                {/* Samples */}
                 <div style={{ marginTop: 12, display: "flex", gap: 7, alignItems: "center", flexWrap: "wrap" }}>
                   <span style={{ fontSize: 12, fontWeight: 600, color: "#AEADA6" }}>Try:</span>
                   {["India becomes richest country", "Aliens landed in Delhi", "Govt bans all social media"].map(s => (
@@ -599,10 +668,10 @@ export default function HomePage() {
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: "#AEADA6", marginBottom: 20 }}>HOW IT WORKS</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px,1fr))", gap: 24 }}>
               {[
-                { icon: "✍️", step: "01", title: "Paste claim",       desc: "Headline, post, or image" },
-                { icon: "🔍", step: "02", title: "We search",          desc: "170+ trusted sources" },
-                { icon: "🤖", step: "03", title: "AI cross-checks",    desc: "Bias & truth scored" },
-                { icon: "📊", step: "04", title: "Get verdict",        desc: "Full report in ~10s" },
+                { icon: "✍️", step: "01", title: "Paste claim",    desc: "Headline, post, or image" },
+                { icon: "🔍", step: "02", title: "We search",       desc: "170+ trusted sources" },
+                { icon: "🤖", step: "03", title: "AI cross-checks", desc: "Bias & truth scored" },
+                { icon: "📊", step: "04", title: "Get verdict",     desc: "Full report in ~10s" },
               ].map((s, i) => (
                 <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -624,41 +693,100 @@ export default function HomePage() {
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: "#AEADA6", marginBottom: 4 }}>HISTORY</div>
               <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1A1A18", letterSpacing: "-0.2px" }}>Recent Checks</h2>
             </div>
-            <button
-              onClick={() => navigate("/history")}
-              style={{ background: "none", border: "none", fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600, color: "#888780", cursor: "pointer", transition: "color 0.2s" }}
-              onMouseEnter={e => e.currentTarget.style.color = "#1A1A18"}
-              onMouseLeave={e => e.currentTarget.style.color = "#888780"}
-            >
-              View all →
-            </button>
+            {user && (
+              <button
+                onClick={() => navigate("/history")}
+                style={{ background: "none", border: "none", fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600, color: "#888780", cursor: "pointer", transition: "color 0.2s" }}
+                onMouseEnter={e => e.currentTarget.style.color = "#1A1A18"}
+                onMouseLeave={e => e.currentTarget.style.color = "#888780"}
+              >
+                View all →
+              </button>
+            )}
           </div>
 
           {user ? (
             <div className="history-card">
-              {HISTORY.map((h, i) => {
-                const pill = PILL[h.labelType];
-                const icon = ICON_STYLE[h.type];
+              {/* Loading skeleton */}
+              {historyLoading && (
+                [1, 2, 3].map(i => (
+                  <div key={i} className="history-row" style={{ pointerEvents: "none" }}>
+                    <div className="skeleton" style={{ width: 44, height: 44, borderRadius: 13, flexShrink: 0 }} />
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+                      <div className="skeleton" style={{ height: 14, width: "70%" }} />
+                      <div className="skeleton" style={{ height: 11, width: "30%" }} />
+                    </div>
+                    <div className="skeleton" style={{ width: 80, height: 24, borderRadius: 99 }} />
+                  </div>
+                ))
+              )}
+
+              {/* Empty state */}
+              {!historyLoading && historyData.length === 0 && (
+                <div style={{ padding: "32px 20px", textAlign: "center" }}>
+                  <div style={{ fontSize: 28, marginBottom: 10 }}>🔍</div>
+                  <p style={{ fontSize: 14, color: "#888780", lineHeight: 1.6 }}>
+                    No checks yet — analyse your first claim above!
+                  </p>
+                </div>
+              )}
+
+              {/* Real history rows */}
+              {!historyLoading && historyData.slice(0, 5).map((h, i) => {
+                const { verdict, pill, icon, timeLabel } = getEntryMeta(h);
+                const rowId = h.id ?? i;
+                const isDeleting = deletingId === rowId;
                 return (
-                  <div key={i} className="history-row" onClick={() => navigate("/result")} style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                    {/* Icon */}
-                    <div style={{ width: 44, height: 44, borderRadius: 13, flexShrink: 0, background: icon.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: icon.color, fontFamily: "'DM Sans', sans-serif" }}>
-                      {h.type}
+                  <div
+                    key={rowId}
+                    className="history-row"
+                    onMouseEnter={() => setHoveredRowId(rowId)}
+                    onMouseLeave={() => setHoveredRowId(null)}
+                    onClick={() => !isDeleting && navigate("/result", { state: { result: h.result } })}
+                  >
+                    {/* Icon badge */}
+                    <div style={{
+                      width: 44, height: 44, borderRadius: 13, flexShrink: 0,
+                      background: icon.bg, display: "flex", alignItems: "center",
+                      justifyContent: "center", fontSize: 13, fontWeight: 700, color: icon.color,
+                    }}>
+                      {h.inputType === "image" ? "I" : "T"}
                     </div>
 
-                    {/* Text */}
+                    {/* Query text + time */}
                     <div style={{ flex: 1, overflow: "hidden" }}>
-                      <div style={{ fontSize: 14, color: "#1A1A18", lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>
-                        {h.claim}
+                      <div style={{
+                        fontSize: 14, color: "#1A1A18", lineHeight: 1.4,
+                        overflow: "hidden", textOverflow: "ellipsis",
+                        whiteSpace: "nowrap", fontWeight: 500,
+                      }}>
+                        {h.query}
                       </div>
-                      <div style={{ fontSize: 12, color: "#AEADA6", marginTop: 3 }}>{h.time}</div>
+                      <div style={{ fontSize: 12, color: "#AEADA6", marginTop: 3 }}>
+                        {timeLabel}
+                      </div>
                     </div>
 
-                    {/* Label + arrow */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, padding: "4px 11px", borderRadius: 99, background: pill.bg, color: pill.color, display: "flex", alignItems: "center", gap: 5 }}>
-                        {pill.icon} {h.label}
+                    {/* Verdict pill + delete + arrow */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, padding: "4px 11px",
+                        borderRadius: 99, background: pill.bg, color: pill.color,
+                        display: "flex", alignItems: "center", gap: 5,
+                      }}>
+                        {pill.icon} {verdict}
                       </span>
+
+                      {/* Delete button */}
+                      <button
+                        className={`delete-btn ${isDeleting ? "deleting" : ""}`}
+                        onClick={e => handleDelete(e, rowId)}
+                        title="Remove from history"
+                        disabled={isDeleting}
+                      >
+                        {isDeleting ? "○" : "✕"}
+                      </button>
+
                       <span className="history-arrow">→</span>
                     </div>
                   </div>
@@ -666,6 +794,7 @@ export default function HomePage() {
               })}
             </div>
           ) : (
+            /* Not logged in */
             <div style={{ padding: "36px 24px", textAlign: "center", background: "#fff", border: "1.5px dashed #E2E0D8", borderRadius: 20 }}>
               <div style={{ fontSize: 32, marginBottom: 12 }}>🔐</div>
               <p style={{ fontSize: 14, color: "#888780", marginBottom: 16, lineHeight: 1.6 }}>
@@ -696,7 +825,6 @@ export default function HomePage() {
         >
           <div style={{ width: 600, maxWidth: "94vw", background: "#FAFAF8", border: "1px solid #EEEDE8", borderRadius: 28, boxShadow: "0 32px 72px rgba(0,0,0,0.14)", display: "flex", flexDirection: "column", overflow: "hidden", maxHeight: "90vh", animation: "slideUpModal 0.22s cubic-bezier(0.16,1,0.3,1)" }}>
 
-            {/* Header */}
             <div style={{ padding: "28px 28px 0", flexShrink: 0 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
                 <div>
@@ -720,7 +848,6 @@ export default function HomePage() {
                 </div>
               </div>
 
-              {/* Group tabs */}
               <div style={{ display: "flex", gap: 4, background: "#F0EFEA", borderRadius: 14, padding: 4, marginBottom: 24 }}>
                 {REGION_GROUPS.map((g, i) => (
                   <button key={g.label} className={`group-tab ${activeTab === i ? "active" : ""}`} onClick={() => setActiveTab(i)}>
@@ -733,7 +860,6 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Region grid */}
             <div style={{ padding: "0 28px", flexShrink: 0, position: "relative", height: 320 }}>
               {REGION_GROUPS.map((group, i) => (
                 <div key={group.label} style={{
@@ -758,7 +884,6 @@ export default function HomePage() {
               ))}
             </div>
 
-            {/* Footer */}
             <div style={{ padding: "20px 28px 28px", borderTop: "1px solid #EEEDE8", marginTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
               <span style={{ fontSize: 13, color: "#888780" }}>
                 {selectedRegions.length === 0
