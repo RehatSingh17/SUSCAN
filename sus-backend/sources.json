@@ -26,19 +26,79 @@
     }
   ],
   "international": [
-    {
-      "name": "CNN",
-      "domain": "cnn.com",
-      "weight": 1.2,
-      "scrapeable": true
-    },
-    {
-      "name": "Al Jazeera",
-      "domain": "aljazeera.com",
-      "weight": 1.2,
-      "scrapeable": true
-    }
-  ],
+  {
+    "name": "CNN",
+    "domain": "cnn.com",
+    "weight": 1.2,
+    "scrapeable": true
+  },
+  {
+    "name": "Al Jazeera",
+    "domain": "aljazeera.com",
+    "weight": 1.2,
+    "scrapeable": true
+  },
+  {
+    "name": "Deutsche Welle",
+    "domain": "dw.com",
+    "weight": 1.15,
+    "scrapeable": true
+  },
+  {
+    "name": "The Guardian",
+    "domain": "theguardian.com",
+    "weight": 1.12,
+    "scrapeable": true
+  },
+  {
+    "name": "France 24",
+    "domain": "france24.com",
+    "weight": 1.1,
+    "scrapeable": true
+  },
+  {
+    "name": "Voice of America",
+    "domain": "voanews.com",
+    "weight": 1.0,
+    "scrapeable": true
+  },
+  {
+    "name": "Nikkei Asia",
+    "domain": "asia.nikkei.com",
+    "weight": 1.08,
+    "scrapeable": true
+  },
+  {
+    "name": "Japan Times",
+    "domain": "japantimes.co.jp",
+    "weight": 1.0,
+    "scrapeable": true
+  },
+  {
+    "name": "South China Morning Post",
+    "domain": "scmp.com",
+    "weight": 1.08,
+    "scrapeable": true
+  },
+  {
+    "name": "Straits Times",
+    "domain": "straitstimes.com",
+    "weight": 1.0,
+    "scrapeable": true
+  },
+  {
+    "name": "Dawn",
+    "domain": "dawn.com",
+    "weight": 1.0,
+    "scrapeable": true
+  },
+  {
+    "name": "Jakarta Post",
+    "domain": "thejakartapost.com",
+    "weight": 0.98,
+    "scrapeable": true
+  }
+],
   "states": {
     "Andhra Pradesh": [
       {
