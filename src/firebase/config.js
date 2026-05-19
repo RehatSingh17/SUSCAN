@@ -1,17 +1,50 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+
+import {
+  getAuth,
+  GoogleAuthProvider
+} from "firebase/auth";
+
+import {
+  getFirestore
+} from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCd0U3tF5xWgEq7BXGMlrrfBkM518F1aZA",
-  authDomain: "suscan-2121f.firebaseapp.com",
-  projectId: "suscan-2121f",
-  storageBucket: "suscan-2121f.firebasestorage.app",
-  messagingSenderId: "372175377657",
-  appId: "1:372175377657:web:5c0399e5210d9089987e28",
+
+  apiKey:
+    import.meta.env
+      .VITE_FIREBASE_API_KEY,
+
+  authDomain:
+    import.meta.env
+      .VITE_FIREBASE_AUTH_DOMAIN,
+
+  projectId:
+    import.meta.env
+      .VITE_FIREBASE_PROJECT_ID,
+
+  storageBucket:
+    import.meta.env
+      .VITE_FIREBASE_STORAGE_BUCKET,
+
+  messagingSenderId:
+    import.meta.env
+      .VITE_FIREBASE_MESSAGING_SENDER_ID,
+
+  appId:
+    import.meta.env
+      .VITE_FIREBASE_APP_ID,
 };
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const googleProvider = new GoogleAuthProvider();
+const app = initializeApp(
+  firebaseConfig
+);
+
+export const auth =
+  getAuth(app);
+
+export const db =
+  getFirestore(app);
+
+export const googleProvider =
+  new GoogleAuthProvider();
