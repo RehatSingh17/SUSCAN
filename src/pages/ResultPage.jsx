@@ -237,6 +237,9 @@ export default function ResultPage() {
       addText(`${confidence}%  (${confidence >= 70 ? "High agreement" : confidence >= 40 ? "Moderate agreement" : "Low agreement"})`, 14, false);
       addDivider();
 
+      addText("NEUTRAL SUMMARY", 9, true, [150, 148, 140]);
+      addText(analysis.summary || "No summary available.", 11, false, [80, 80, 75]);
+      addDivider();
       // ── AI Reasoning
       addText("AI REASONING", 9, true, [150, 148, 140]);
       addText(analysis.reasoning || "No reasoning available.", 11, false, [80, 80, 75]);
