@@ -1,6 +1,4 @@
-# ─────────────────────────────────────────────
-# Load .env FIRST — before any os.getenv calls
-# ─────────────────────────────────────────────
+
 from pathlib import Path
 from dotenv import load_dotenv
 
