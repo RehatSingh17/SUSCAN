@@ -108,6 +108,8 @@ async def apply_source(form: ApplicationForm):
 
     except Exception as e:
         print(f"[apply-source] Email error: {e}")
-        # Still return ok so the UI shows success
-        # Remove this in production if you want strict error handling
-        return {"ok": True, "message": "Application received"}
+
+        return {
+            "ok": False,
+            "error": str(e)
+        }
