@@ -627,7 +627,7 @@ __pycache__/
 Developed by:
 
 * Raksham Sharma
-* Team SUSCAN
+* Rehat Singh
 
 ---
 
