@@ -3,119 +3,187 @@
     {
       "name": "Reuters",
       "domain": "reuters.com",
+      "language": "en",
       "weight": 1.0,
       "scrapeable": false
     },
     {
       "name": "AP News",
       "domain": "apnews.com",
+      "language": "en",
       "weight": 1.0,
       "scrapeable": true
     },
     {
       "name": "BBC News",
       "domain": "bbc.com",
+      "language": "en",
       "weight": 0.95,
       "scrapeable": true
     },
     {
       "name": "The Hindu",
       "domain": "thehindu.com",
+      "language": "en",
       "weight": 0.92,
+      "scrapeable": true
+    },
+    {
+      "name": "Aaj Tak",
+      "domain": "aajtak.in",
+      "language": "hi",
+      "weight": 0.90,
+      "scrapeable": true
+    },
+    {
+      "name": "Amar Ujala",
+      "domain": "amarujala.com",
+      "language": "hi",
+      "weight": 0.90,
+      "scrapeable": true
+    },
+    {
+      "name": "Dainik Bhaskar",
+      "domain": "bhaskar.com",
+      "language": "hi",
+      "weight": 0.88,
+      "scrapeable": true
+    },
+    {
+      "name": "Jagran",
+      "domain": "jagran.com",
+      "language": "hi",
+      "weight": 0.88,
+      "scrapeable": true
+    },
+    {
+      "name": "BBC Hindi",
+      "domain": "bbchindi.com",
+      "language": "hi",
+      "weight": 0.95,
       "scrapeable": true
     }
   ],
   "international": [
-  {
-    "name": "CNN",
-    "domain": "cnn.com",
-    "weight": 1.2,
-    "scrapeable": true
-  },
-  {
-    "name": "Al Jazeera",
-    "domain": "aljazeera.com",
-    "weight": 1.2,
-    "scrapeable": true
-  },
-  {
-    "name": "Deutsche Welle",
-    "domain": "dw.com",
-    "weight": 1.15,
-    "scrapeable": true
-  },
-  {
-    "name": "The Guardian",
-    "domain": "theguardian.com",
-    "weight": 1.12,
-    "scrapeable": true
-  },
-  {
-    "name": "France 24",
-    "domain": "france24.com",
-    "weight": 1.1,
-    "scrapeable": true
-  },
-  {
-    "name": "Voice of America",
-    "domain": "voanews.com",
-    "weight": 1.0,
-    "scrapeable": true
-  },
-  {
-    "name": "Nikkei Asia",
-    "domain": "asia.nikkei.com",
-    "weight": 1.08,
-    "scrapeable": true
-  },
-  {
-    "name": "Japan Times",
-    "domain": "japantimes.co.jp",
-    "weight": 1.0,
-    "scrapeable": true
-  },
-  {
-    "name": "South China Morning Post",
-    "domain": "scmp.com",
-    "weight": 1.08,
-    "scrapeable": true
-  },
-  {
-    "name": "Straits Times",
-    "domain": "straitstimes.com",
-    "weight": 1.0,
-    "scrapeable": true
-  },
-  {
-    "name": "Dawn",
-    "domain": "dawn.com",
-    "weight": 1.0,
-    "scrapeable": true
-  },
-  {
-    "name": "Jakarta Post",
-    "domain": "thejakartapost.com",
-    "weight": 0.98,
-    "scrapeable": true
-  }
-],
+    {
+      "name": "CNN",
+      "domain": "cnn.com",
+      "language": "en",
+      "weight": 1.2,
+      "scrapeable": true
+    },
+    {
+      "name": "Al Jazeera",
+      "domain": "aljazeera.com",
+      "language": "en",
+      "weight": 1.2,
+      "scrapeable": true
+    },
+    {
+      "name": "Deutsche Welle",
+      "domain": "dw.com",
+      "language": "en",
+      "weight": 1.15,
+      "scrapeable": true
+    },
+    {
+      "name": "The Guardian",
+      "domain": "theguardian.com",
+      "language": "en",
+      "weight": 1.12,
+      "scrapeable": true
+    },
+    {
+      "name": "France 24",
+      "domain": "france24.com",
+      "language": "en",
+      "weight": 1.1,
+      "scrapeable": true
+    },
+    {
+      "name": "Voice of America",
+      "domain": "voanews.com",
+      "language": "en",
+      "weight": 1.0,
+      "scrapeable": true
+    },
+    {
+      "name": "Nikkei Asia",
+      "domain": "asia.nikkei.com",
+      "language": "en",
+      "weight": 1.08,
+      "scrapeable": true
+    },
+    {
+      "name": "Japan Times",
+      "domain": "japantimes.co.jp",
+      "language": "en",
+      "weight": 1.0,
+      "scrapeable": true
+    },
+    {
+      "name": "South China Morning Post",
+      "domain": "scmp.com",
+      "language": "en",
+      "weight": 1.08,
+      "scrapeable": true
+    },
+    {
+      "name": "Straits Times",
+      "domain": "straitstimes.com",
+      "language": "en",
+      "weight": 1.0,
+      "scrapeable": true
+    },
+    {
+      "name": "Dawn",
+      "domain": "dawn.com",
+      "language": "en",
+      "weight": 1.0,
+      "scrapeable": true
+    },
+    {
+      "name": "Jakarta Post",
+      "domain": "thejakartapost.com",
+      "language": "en",
+      "weight": 0.98,
+      "scrapeable": true
+    }
+  ],
   "states": {
     "Andhra Pradesh": [
       {
         "name": "The Hindu",
         "domain": "thehindu.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
         "name": "Deccan Chronicle",
         "domain": "deccanchronicle.com",
+        "language": "en",
         "weight": 1.4,
         "scrapeable": true
       },
       {
-        "name": "The New Indian Express",
-        "domain": "newindianexpress.com",
+        "name": "Eenadu",
+        "domain": "eenadu.net",
+        "language": "te",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Sakshi",
+        "domain": "sakshi.com",
+        "language": "te",
+        "weight": 1.4,
+        "scrapeable": true
+      },
+      {
+        "name": "Andhra Jyothy",
+        "domain": "andhrajyothy.com",
+        "language": "te",
         "weight": 1.35,
         "scrapeable": true
       }
@@ -124,18 +192,21 @@
       {
         "name": "The Arunachal Times",
         "domain": "arunachaltimes.in",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
         "name": "Northeast Now",
         "domain": "nenow.in",
+        "language": "en",
         "weight": 1.35,
         "scrapeable": true
       },
       {
-        "name": "The Sentinel",
-        "domain": "thesentinelassam.com",
+        "name": "Dainik Jagran",
+        "domain": "jagran.com",
+        "language": "hi",
         "weight": 1.25,
         "scrapeable": true
       }
@@ -144,19 +215,22 @@
       {
         "name": "The Assam Tribune",
         "domain": "assamtribune.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "The Sentinel",
-        "domain": "thesentinelassam.com",
-        "weight": 1.4,
+        "name": "Asomiya Pratidin",
+        "domain": "asomiyapratidin.in",
+        "language": "as",
+        "weight": 1.5,
         "scrapeable": true
       },
       {
         "name": "Northeast Now",
         "domain": "nenow.in",
-        "weight": 1.35,
+        "language": "en",
+        "weight": 1.3,
         "scrapeable": true
       }
     ],
@@ -164,19 +238,36 @@
       {
         "name": "Hindustan Times",
         "domain": "hindustantimes.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "The Times of India",
-        "domain": "timesofindia.indiatimes.com",
+        "name": "Dainik Jagran",
+        "domain": "jagran.com",
+        "language": "hi",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Live Hindustan",
+        "domain": "livehindustan.com",
+        "language": "hi",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Prabhat Khabar",
+        "domain": "prabhatkhabar.com",
+        "language": "hi",
         "weight": 1.4,
         "scrapeable": true
       },
       {
-        "name": "The Telegraph",
-        "domain": "telegraphindia.com",
-        "weight": 1.3,
+        "name": "Dainik Bhaskar",
+        "domain": "bhaskar.com",
+        "language": "hi",
+        "weight": 1.4,
         "scrapeable": true
       }
     ],
@@ -184,19 +275,22 @@
       {
         "name": "The Hitavada",
         "domain": "thehitavada.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "Free Press Journal",
-        "domain": "freepressjournal.in",
-        "weight": 1.35,
+        "name": "Dainik Bhaskar",
+        "domain": "bhaskar.com",
+        "language": "hi",
+        "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "The Times of India",
-        "domain": "timesofindia.indiatimes.com",
-        "weight": 1.25,
+        "name": "Nai Dunia",
+        "domain": "naidunia.com",
+        "language": "hi",
+        "weight": 1.4,
         "scrapeable": true
       }
     ],
@@ -204,19 +298,22 @@
       {
         "name": "The Navhind Times",
         "domain": "navhindtimes.in",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
         "name": "Herald Goa",
         "domain": "heraldgoa.in",
+        "language": "en",
         "weight": 1.4,
         "scrapeable": true
       },
       {
-        "name": "The Goan",
-        "domain": "thegoan.net",
-        "weight": 1.3,
+        "name": "O Heraldo",
+        "domain": "oheraldo.in",
+        "language": "en",
+        "weight": 1.35,
         "scrapeable": true
       }
     ],
@@ -224,19 +321,36 @@
       {
         "name": "Indian Express",
         "domain": "indianexpress.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "The Times of India",
+        "name": "Times of India Gujarat",
         "domain": "timesofindia.indiatimes.com",
+        "language": "en",
         "weight": 1.4,
         "scrapeable": true
       },
       {
-        "name": "Ahmedabad Mirror",
-        "domain": "ahmedabadmirror.com",
-        "weight": 1.25,
+        "name": "Gujarat Samachar",
+        "domain": "gujaratsamachar.com",
+        "language": "gu",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Divya Bhaskar",
+        "domain": "divyabhaskar.co.in",
+        "language": "gu",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Sandesh",
+        "domain": "sandesh.com",
+        "language": "gu",
+        "weight": 1.45,
         "scrapeable": true
       }
     ],
@@ -244,19 +358,29 @@
       {
         "name": "The Tribune",
         "domain": "tribuneindia.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "Hindustan Times",
-        "domain": "hindustantimes.com",
-        "weight": 1.35,
+        "name": "Dainik Bhaskar",
+        "domain": "bhaskar.com",
+        "language": "hi",
+        "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "The Times of India",
-        "domain": "timesofindia.indiatimes.com",
-        "weight": 1.25,
+        "name": "Amar Ujala",
+        "domain": "amarujala.com",
+        "language": "hi",
+        "weight": 1.45,
+        "scrapeable": true
+      },
+      {
+        "name": "Punjab Kesari",
+        "domain": "punjabkesari.in",
+        "language": "hi",
+        "weight": 1.4,
         "scrapeable": true
       }
     ],
@@ -264,39 +388,59 @@
       {
         "name": "The Tribune",
         "domain": "tribuneindia.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "The Times of India",
-        "domain": "timesofindia.indiatimes.com",
-        "weight": 1.35,
+        "name": "Amar Ujala",
+        "domain": "amarujala.com",
+        "language": "hi",
+        "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "The New Indian Express",
-        "domain": "newindianexpress.com",
-        "weight": 1.2,
+        "name": "Divya Himachal",
+        "domain": "divyahimachal.com",
+        "language": "hi",
+        "weight": 1.45,
+        "scrapeable": true
+      },
+      {
+        "name": "Punjab Kesari",
+        "domain": "punjabkesari.in",
+        "language": "hi",
+        "weight": 1.4,
         "scrapeable": true
       }
     ],
     "Jharkhand": [
       {
-        "name": "The Avenue Mail",
-        "domain": "avenuemail.in",
-        "weight": 1.5,
-        "scrapeable": true
-      },
-      {
         "name": "The Telegraph",
         "domain": "telegraphindia.com",
+        "language": "en",
         "weight": 1.35,
         "scrapeable": true
       },
       {
-        "name": "Hindustan Times",
-        "domain": "hindustantimes.com",
-        "weight": 1.25,
+        "name": "Prabhat Khabar",
+        "domain": "prabhatkhabar.com",
+        "language": "hi",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Dainik Jagran",
+        "domain": "jagran.com",
+        "language": "hi",
+        "weight": 1.45,
+        "scrapeable": true
+      },
+      {
+        "name": "Live Hindustan",
+        "domain": "livehindustan.com",
+        "language": "hi",
+        "weight": 1.45,
         "scrapeable": true
       }
     ],
@@ -304,19 +448,36 @@
       {
         "name": "Deccan Herald",
         "domain": "deccanherald.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
         "name": "The Hindu",
         "domain": "thehindu.com",
+        "language": "en",
         "weight": 1.4,
         "scrapeable": true
       },
       {
-        "name": "The New Indian Express",
-        "domain": "newindianexpress.com",
-        "weight": 1.3,
+        "name": "Vijayavani",
+        "domain": "vijayavani.net",
+        "language": "kn",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Prajavani",
+        "domain": "prajavani.net",
+        "language": "kn",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Udayavani",
+        "domain": "udayavani.com",
+        "language": "kn",
+        "weight": 1.4,
         "scrapeable": true
       }
     ],
@@ -324,19 +485,36 @@
       {
         "name": "Onmanorama",
         "domain": "onmanorama.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "The Hindu",
+        "name": "The Hindu Kerala",
         "domain": "thehindu.com",
+        "language": "en",
         "weight": 1.4,
         "scrapeable": true
       },
       {
-        "name": "The New Indian Express",
-        "domain": "newindianexpress.com",
-        "weight": 1.3,
+        "name": "Malayala Manorama",
+        "domain": "manoramaonline.com",
+        "language": "ml",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Mathrubhumi",
+        "domain": "mathrubhumi.com",
+        "language": "ml",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Madhyamam",
+        "domain": "madhyamam.com",
+        "language": "ml",
+        "weight": 1.35,
         "scrapeable": true
       }
     ],
@@ -344,19 +522,29 @@
       {
         "name": "Free Press Journal",
         "domain": "freepressjournal.in",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "The Times of India",
-        "domain": "timesofindia.indiatimes.com",
-        "weight": 1.4,
+        "name": "Dainik Bhaskar",
+        "domain": "bhaskar.com",
+        "language": "hi",
+        "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "The Hitavada",
-        "domain": "thehitavada.com",
-        "weight": 1.3,
+        "name": "Nai Dunia",
+        "domain": "naidunia.com",
+        "language": "hi",
+        "weight": 1.45,
+        "scrapeable": true
+      },
+      {
+        "name": "Patrika",
+        "domain": "patrika.com",
+        "language": "hi",
+        "weight": 1.4,
         "scrapeable": true
       }
     ],
@@ -364,19 +552,36 @@
       {
         "name": "Indian Express",
         "domain": "indianexpress.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "Free Press Journal",
-        "domain": "freepressjournal.in",
+        "name": "Hindustan Times Mumbai",
+        "domain": "hindustantimes.com",
+        "language": "en",
         "weight": 1.4,
         "scrapeable": true
       },
       {
-        "name": "Mid-day",
-        "domain": "mid-day.com",
-        "weight": 1.3,
+        "name": "Lokmat",
+        "domain": "lokmat.com",
+        "language": "mr",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Sakal",
+        "domain": "esakal.com",
+        "language": "mr",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Maharashtra Times",
+        "domain": "maharashtratimes.com",
+        "language": "mr",
+        "weight": 1.45,
         "scrapeable": true
       }
     ],
@@ -384,19 +589,22 @@
       {
         "name": "The Sangai Express",
         "domain": "thesangaiexpress.com",
+        "language": "en",
         "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Imphal Free Press",
+        "domain": "ifp.co.in",
+        "language": "en",
+        "weight": 1.4,
         "scrapeable": true
       },
       {
         "name": "Northeast Now",
         "domain": "nenow.in",
-        "weight": 1.35,
-        "scrapeable": true
-      },
-      {
-        "name": "The Sentinel",
-        "domain": "thesentinelassam.com",
-        "weight": 1.25,
+        "language": "en",
+        "weight": 1.3,
         "scrapeable": true
       }
     ],
@@ -404,19 +612,15 @@
       {
         "name": "Shillong Times",
         "domain": "theshillongtimes.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
         "name": "Northeast Now",
         "domain": "nenow.in",
+        "language": "en",
         "weight": 1.35,
-        "scrapeable": true
-      },
-      {
-        "name": "The Sentinel",
-        "domain": "thesentinelassam.com",
-        "weight": 1.25,
         "scrapeable": true
       }
     ],
@@ -424,19 +628,15 @@
       {
         "name": "The Mizoram Post",
         "domain": "mizorampost.net",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
         "name": "Northeast Now",
         "domain": "nenow.in",
-        "weight": 1.35,
-        "scrapeable": true
-      },
-      {
-        "name": "The Sentinel",
-        "domain": "thesentinelassam.com",
-        "weight": 1.2,
+        "language": "en",
+        "weight": 1.3,
         "scrapeable": true
       }
     ],
@@ -444,18 +644,21 @@
       {
         "name": "Nagaland Post",
         "domain": "nagalandpost.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
         "name": "Eastern Mirror",
         "domain": "easternmirrornagaland.com",
+        "language": "en",
         "weight": 1.4,
         "scrapeable": true
       },
       {
         "name": "Morung Express",
         "domain": "morungexpress.com",
+        "language": "en",
         "weight": 1.3,
         "scrapeable": true
       }
@@ -464,19 +667,29 @@
       {
         "name": "The New Indian Express",
         "domain": "newindianexpress.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
         "name": "Odisha TV",
         "domain": "odishatv.in",
+        "language": "en",
         "weight": 1.4,
         "scrapeable": true
       },
       {
-        "name": "The Pioneer",
-        "domain": "dailypioneer.com",
-        "weight": 1.25,
+        "name": "Sambad",
+        "domain": "sambad.in",
+        "language": "or",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Dharitri",
+        "domain": "dharitri.com",
+        "language": "or",
+        "weight": 1.45,
         "scrapeable": true
       }
     ],
@@ -484,39 +697,66 @@
       {
         "name": "The Tribune",
         "domain": "tribuneindia.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "Hindustan Times",
+        "name": "Hindustan Times Punjab",
         "domain": "hindustantimes.com",
-        "weight": 1.35,
+        "language": "en",
+        "weight": 1.4,
         "scrapeable": true
       },
       {
-        "name": "The Times of India",
-        "domain": "timesofindia.indiatimes.com",
-        "weight": 1.25,
+        "name": "Ajit",
+        "domain": "ajitjalandhar.com",
+        "language": "pa",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Punjabi Jagran",
+        "domain": "punjabijagran.com",
+        "language": "pa",
+        "weight": 1.4,
+        "scrapeable": true
+      },
+      {
+        "name": "Dainik Bhaskar",
+        "domain": "bhaskar.com",
+        "language": "hi",
+        "weight": 1.35,
         "scrapeable": true
       }
     ],
     "Rajasthan": [
       {
-        "name": "The Times of India",
+        "name": "Times of India",
         "domain": "timesofindia.indiatimes.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "The Print",
-        "domain": "theprint.in",
-        "weight": 1.3,
+        "name": "Rajasthan Patrika",
+        "domain": "patrika.com",
+        "language": "hi",
+        "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "The Pioneer",
-        "domain": "dailypioneer.com",
-        "weight": 1.2,
+        "name": "Dainik Bhaskar",
+        "domain": "bhaskar.com",
+        "language": "hi",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Dainik Navajyoti",
+        "domain": "dainiknavajyoti.com",
+        "language": "hi",
+        "weight": 1.4,
         "scrapeable": true
       }
     ],
@@ -524,19 +764,15 @@
       {
         "name": "The Sikkim Express",
         "domain": "sikkimexpress.com",
+        "language": "en",
         "weight": 1.5,
-        "scrapeable": true
-      },
-      {
-        "name": "The Telegraph",
-        "domain": "telegraphindia.com",
-        "weight": 1.3,
         "scrapeable": true
       },
       {
         "name": "Northeast Now",
         "domain": "nenow.in",
-        "weight": 1.25,
+        "language": "en",
+        "weight": 1.3,
         "scrapeable": true
       }
     ],
@@ -544,19 +780,29 @@
       {
         "name": "The Hindu",
         "domain": "thehindu.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "DT Next",
-        "domain": "dtnext.in",
-        "weight": 1.4,
+        "name": "Daily Thanthi",
+        "domain": "dailythanthi.com",
+        "language": "ta",
+        "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "The New Indian Express",
-        "domain": "newindianexpress.com",
-        "weight": 1.3,
+        "name": "Dinamalar",
+        "domain": "dinamalar.com",
+        "language": "ta",
+        "weight": 1.45,
+        "scrapeable": true
+      },
+      {
+        "name": "Dinamani",
+        "domain": "dinamani.com",
+        "language": "ta",
+        "weight": 1.4,
         "scrapeable": true
       }
     ],
@@ -564,19 +810,22 @@
       {
         "name": "Deccan Chronicle",
         "domain": "deccanchronicle.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "The Siasat Daily",
-        "domain": "siasat.com",
-        "weight": 1.4,
+        "name": "Eenadu",
+        "domain": "eenadu.net",
+        "language": "te",
+        "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "The Hans India",
-        "domain": "thehansindia.com",
-        "weight": 1.3,
+        "name": "Namasthe Telangana",
+        "domain": "ntnews.com",
+        "language": "te",
+        "weight": 1.45,
         "scrapeable": true
       }
     ],
@@ -584,19 +833,15 @@
       {
         "name": "Tripura Times",
         "domain": "tripuratimes.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
         "name": "Northeast Now",
         "domain": "nenow.in",
-        "weight": 1.35,
-        "scrapeable": true
-      },
-      {
-        "name": "The Sentinel",
-        "domain": "thesentinelassam.com",
-        "weight": 1.2,
+        "language": "en",
+        "weight": 1.3,
         "scrapeable": true
       }
     ],
@@ -604,19 +849,29 @@
       {
         "name": "Hindustan Times",
         "domain": "hindustantimes.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "The Times of India",
-        "domain": "timesofindia.indiatimes.com",
-        "weight": 1.4,
+        "name": "Dainik Jagran",
+        "domain": "jagran.com",
+        "language": "hi",
+        "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "The Pioneer",
-        "domain": "dailypioneer.com",
-        "weight": 1.3,
+        "name": "Amar Ujala",
+        "domain": "amarujala.com",
+        "language": "hi",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Navbharat Times",
+        "domain": "navbharattimes.indiatimes.com",
+        "language": "hi",
+        "weight": 1.45,
         "scrapeable": true
       }
     ],
@@ -624,19 +879,29 @@
       {
         "name": "The Tribune",
         "domain": "tribuneindia.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "Hindustan Times",
-        "domain": "hindustantimes.com",
-        "weight": 1.35,
+        "name": "Amar Ujala",
+        "domain": "amarujala.com",
+        "language": "hi",
+        "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "The Pioneer",
-        "domain": "dailypioneer.com",
-        "weight": 1.25,
+        "name": "Dainik Jagran",
+        "domain": "jagran.com",
+        "language": "hi",
+        "weight": 1.45,
+        "scrapeable": true
+      },
+      {
+        "name": "Live Hindustan",
+        "domain": "livehindustan.com",
+        "language": "hi",
+        "weight": 1.4,
         "scrapeable": true
       }
     ],
@@ -644,19 +909,36 @@
       {
         "name": "The Telegraph",
         "domain": "telegraphindia.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "The Statesman",
-        "domain": "thestatesman.com",
+        "name": "Hindustan Times Kolkata",
+        "domain": "hindustantimes.com",
+        "language": "en",
+        "weight": 1.3,
+        "scrapeable": true
+      },
+      {
+        "name": "Anandabazar Patrika",
+        "domain": "anandabazar.com",
+        "language": "bn",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Sangbad Pratidin",
+        "domain": "sangbadpratidin.in",
+        "language": "bn",
         "weight": 1.4,
         "scrapeable": true
       },
       {
-        "name": "The Times of India",
-        "domain": "timesofindia.indiatimes.com",
-        "weight": 1.3,
+        "name": "Ei Samay",
+        "domain": "eisamay.com",
+        "language": "bn",
+        "weight": 1.4,
         "scrapeable": true
       }
     ]
@@ -664,48 +946,62 @@
   "uts": {
     "Andaman and Nicobar Islands": [
       {
-        "name": "The Daily Telegrams",
-        "domain": "dt.andaman.gov.in",
-        "weight": 1.5,
+        "name": "The Hindu",
+        "domain": "thehindu.com",
+        "language": "en",
+        "weight": 1.3,
         "scrapeable": true
       },
       {
-        "name": "The Hindu",
-        "domain": "thehindu.com",
-        "weight": 1.3,
+        "name": "Dainik Jagran",
+        "domain": "jagran.com",
+        "language": "hi",
+        "weight": 1.2,
         "scrapeable": true
       }
     ],
     "Chandigarh": [
       {
-        "name": "Chandigarh News",
-        "domain": "chandigarhnews.net",
+        "name": "The Tribune",
+        "domain": "tribuneindia.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "The Tribune",
-        "domain": "tribuneindia.com",
-        "weight": 1.4,
+        "name": "Dainik Bhaskar",
+        "domain": "bhaskar.com",
+        "language": "hi",
+        "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "Hindustan Times",
-        "domain": "hindustantimes.com",
-        "weight": 1.25,
+        "name": "Amar Ujala",
+        "domain": "amarujala.com",
+        "language": "hi",
+        "weight": 1.4,
         "scrapeable": true
       }
     ],
     "Dadra and Nagar Haveli and Daman and Diu": [
       {
-        "name": "The Times of India",
+        "name": "Times of India",
         "domain": "timesofindia.indiatimes.com",
+        "language": "en",
         "weight": 1.4,
         "scrapeable": true
       },
       {
-        "name": "Indian Express",
-        "domain": "indianexpress.com",
+        "name": "Gujarat Samachar",
+        "domain": "gujaratsamachar.com",
+        "language": "gu",
+        "weight": 1.4,
+        "scrapeable": true
+      },
+      {
+        "name": "Dainik Bhaskar",
+        "domain": "bhaskar.com",
+        "language": "hi",
         "weight": 1.3,
         "scrapeable": true
       }
@@ -714,19 +1010,29 @@
       {
         "name": "Hindustan Times",
         "domain": "hindustantimes.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "Indian Express",
-        "domain": "indianexpress.com",
-        "weight": 1.4,
+        "name": "Times of India",
+        "domain": "timesofindia.indiatimes.com",
+        "language": "en",
+        "weight": 1.45,
         "scrapeable": true
       },
       {
-        "name": "The Times of India",
-        "domain": "timesofindia.indiatimes.com",
-        "weight": 1.3,
+        "name": "Navbharat Times",
+        "domain": "navbharattimes.indiatimes.com",
+        "language": "hi",
+        "weight": 1.5,
+        "scrapeable": true
+      },
+      {
+        "name": "Dainik Jagran",
+        "domain": "jagran.com",
+        "language": "hi",
+        "weight": 1.45,
         "scrapeable": true
       }
     ],
@@ -734,19 +1040,29 @@
       {
         "name": "Greater Kashmir",
         "domain": "greaterkashmir.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "Rising Kashmir",
-        "domain": "risingkashmir.com",
+        "name": "Daily Excelsior",
+        "domain": "dailyexcelsior.com",
+        "language": "en",
+        "weight": 1.45,
+        "scrapeable": true
+      },
+      {
+        "name": "Amar Ujala",
+        "domain": "amarujala.com",
+        "language": "hi",
         "weight": 1.4,
         "scrapeable": true
       },
       {
         "name": "Kashmir Observer",
         "domain": "kashmirobserver.net",
-        "weight": 1.3,
+        "language": "en",
+        "weight": 1.35,
         "scrapeable": true
       }
     ],
@@ -754,12 +1070,14 @@
       {
         "name": "Ladakh Live",
         "domain": "ladakhlive.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
         "name": "Daily Excelsior",
         "domain": "dailyexcelsior.com",
+        "language": "en",
         "weight": 1.3,
         "scrapeable": true
       }
@@ -768,13 +1086,15 @@
       {
         "name": "The Hindu",
         "domain": "thehindu.com",
+        "language": "en",
         "weight": 1.35,
         "scrapeable": true
       },
       {
-        "name": "Times of India",
-        "domain": "timesofindia.indiatimes.com",
-        "weight": 1.25,
+        "name": "Mathrubhumi",
+        "domain": "mathrubhumi.com",
+        "language": "ml",
+        "weight": 1.4,
         "scrapeable": true
       }
     ],
@@ -782,19 +1102,22 @@
       {
         "name": "The Hindu",
         "domain": "thehindu.com",
+        "language": "en",
         "weight": 1.5,
         "scrapeable": true
       },
       {
-        "name": "DT Next",
-        "domain": "dtnext.in",
-        "weight": 1.3,
+        "name": "Dinamalar",
+        "domain": "dinamalar.com",
+        "language": "ta",
+        "weight": 1.45,
         "scrapeable": true
       },
       {
-        "name": "The New Indian Express",
-        "domain": "newindianexpress.com",
-        "weight": 1.25,
+        "name": "Daily Thanthi",
+        "domain": "dailythanthi.com",
+        "language": "ta",
+        "weight": 1.4,
         "scrapeable": true
       }
     ]
