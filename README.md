@@ -158,6 +158,7 @@ SUSCAN/
 │   ├── requirements.txt
 │   └── sources.json
 │
+|──.env
 ├── package.json
 ├── vite.config.js
 └── README.md
