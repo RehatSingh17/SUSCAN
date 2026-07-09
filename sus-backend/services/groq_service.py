@@ -36,9 +36,78 @@ LANGUAGE_NAMES = {
     "ur": "Urdu",
 }
 
+# ─────────────────────────────────────────────
+# 🔹 LANGUAGE-AWARE FALLBACK STRINGS
+# ─────────────────────────────────────────────
+FALLBACK_STRINGS = {
+    "en": {
+        "unavailable": "AI analysis temporarily unavailable",
+        "no_verdict":  "Verdict could not be determined",
+        "not_available": "Not available",
+    },
+    "hi": {
+        "unavailable": "AI विश्लेषण अस्थायी रूप से उपलब्ध नहीं है",
+        "no_verdict":  "निर्णय निर्धारित नहीं किया जा सका",
+        "not_available": "उपलब्ध नहीं",
+    },
+    "te": {
+        "unavailable": "AI విశ్లేషణ తాత్కాలికంగా అందుబాటులో లేదు",
+        "no_verdict":  "తీర్పు నిర్ణయించబడలేదు",
+        "not_available": "అందుబాటులో లేదు",
+    },
+    "ta": {
+        "unavailable": "AI பகுப்பாய்வு தற்காலிகமாக கிடைக்கவில்லை",
+        "no_verdict":  "தீர்ப்பு தீர்மானிக்கப்படவில்லை",
+        "not_available": "கிடைக்கவில்லை",
+    },
+    "bn": {
+        "unavailable": "AI বিশ্লেষণ সাময়িকভাবে অনুপলব্ধ",
+        "no_verdict":  "রায় নির্ধারণ করা যায়নি",
+        "not_available": "উপলব্ধ নয়",
+    },
+    "kn": {
+        "unavailable": "AI ವಿಶ್ಲೇಷಣೆ ತಾತ್ಕಾಲಿಕವಾಗಿ ಲಭ್ಯವಿಲ್ಲ",
+        "no_verdict":  "ತೀರ್ಪು ನಿರ್ಧರಿಸಲಾಗಲಿಲ್ಲ",
+        "not_available": "ಲಭ್ಯವಿಲ್ಲ",
+    },
+    "mr": {
+        "unavailable": "AI विश्लेषण तात्पुरते अनुपलब्ध आहे",
+        "no_verdict":  "निकाल निर्धारित करता आला नाही",
+        "not_available": "उपलब्ध नाही",
+    },
+    "pa": {
+        "unavailable": "AI ਵਿਸ਼ਲੇਸ਼ਣ ਅਸਥਾਈ ਤੌਰ 'ਤੇ ਉਪਲਬਧ ਨਹੀਂ ਹੈ",
+        "no_verdict":  "ਫੈਸਲਾ ਨਿਰਧਾਰਿਤ ਨਹੀਂ ਕੀਤਾ ਜਾ ਸਕਿਆ",
+        "not_available": "ਉਪਲਬਧ ਨਹੀਂ",
+    },
+    "ur": {
+        "unavailable": "AI تجزیہ عارضی طور پر دستیاب نہیں ہے",
+        "no_verdict":  "فیصلہ نہیں ہو سکا",
+        "not_available": "دستیاب نہیں",
+    },
+    "gu": {
+        "unavailable": "AI વિશ્લેષણ અસ્થાયી રૂપે અનુપલબ્ધ છે",
+        "no_verdict":  "ચુકાદો નક્કી કરી શકાયો નહીં",
+        "not_available": "ઉપલબ્ધ નથી",
+    },
+    "ml": {
+        "unavailable": "AI വിശകലനം താൽക്കാലികമായി ലഭ്യമല്ല",
+        "no_verdict":  "വിധി നിർണ്ണയിക്കാൻ കഴിഞ്ഞില്ല",
+        "not_available": "ലഭ്യമല്ല",
+    },
+    "as": {
+        "unavailable": "AI বিশ্লেষণ সাময়িকভাৱে অনুপলব্ধ",
+        "no_verdict":  "ৰায় নিৰ্ধাৰণ কৰিব পৰা নগ'ল",
+        "not_available": "উপলব্ধ নহয়",
+    },
+}
+
+def get_fallback_str(lang: str, key: str) -> str:
+    return FALLBACK_STRINGS.get(lang, FALLBACK_STRINGS["en"])[key]
+
 
 # ─────────────────────────────────────────────
-# 🔹 JSON PARSER
+# 🔹 JSON PARSER (robust — handles truncation)
 # ─────────────────────────────────────────────
 def parse_response(text: str) -> dict:
     text = text.strip()
@@ -47,13 +116,29 @@ def parse_response(text: str) -> dict:
     end   = text.rfind("}") + 1
     if start == -1 or end <= start:
         raise ValueError("No JSON object found in response")
-    return json.loads(text[start:end])
+
+    json_str = text[start:end]
+
+    # First attempt — clean parse
+    try:
+        return json.loads(json_str)
+    except json.JSONDecodeError:
+        pass
+
+    # Second attempt — salvage truncated JSON by trimming to last valid closing brace
+    for i in range(len(json_str), 0, -1):
+        try:
+            return json.loads(json_str[:i])
+        except json.JSONDecodeError:
+            continue
+
+    raise ValueError("Could not parse JSON even after truncation recovery")
 
 
 # ─────────────────────────────────────────────
 # 🔹 FIELD VALIDATOR
 # ─────────────────────────────────────────────
-def ensure_fields(result: dict) -> dict:
+def ensure_fields(result: dict, lang: str = "en") -> dict:
     raw_score = result.get("truth_score", 0)
     try:
         score = int(float(str(raw_score).strip()))
@@ -73,40 +158,44 @@ def ensure_fields(result: dict) -> dict:
     result["bias_detected"] = bool(result.get("bias_detected", False))
     if not isinstance(result.get("bias_types"), list):
         result["bias_types"] = []
+
+    not_available = get_fallback_str(lang, "not_available")
     for field in ["summary", "reasoning", "missing_context"]:
         if not result.get(field):
-            result[field] = "Not available"
+            result[field] = not_available
 
     return result
 
 
 # ─────────────────────────────────────────────
-# 🔹 FALLBACK RESPONSE
+# 🔹 FALLBACK RESPONSE (language-aware)
 # ─────────────────────────────────────────────
 def fallback_response(reason: str = "Analysis unavailable", lang_info: dict = None) -> dict:
+    lang = lang_info.get("fallback", "en") if lang_info else "en"
+
+    unavailable  = get_fallback_str(lang, "unavailable")
+    no_verdict   = get_fallback_str(lang, "no_verdict")
+    not_available = get_fallback_str(lang, "not_available")
+
     fb = {
-        "event_recency":  "unclear",
-        "truth_score":    0,
-        "bias_detected":  False,
-        "bias_types":     [],
-        "missing_context": reason,
-        "summary":        f"AI analysis temporarily unavailable: {reason}",
-        "final_verdict":  "unclear",
-        "reasoning":      f"Verdict could not be determined: {reason}",
+        "event_recency":   "unclear",
+        "truth_score":     0,
+        "bias_detected":   False,
+        "bias_types":      [],
+        "missing_context": not_available,
+        "summary":         f"{unavailable}: {reason}",
+        "final_verdict":   "unclear",
+        "reasoning":       f"{no_verdict}: {reason}",
+        "detected_language":  lang,
+        "language_supported": lang_info.get("supported", False) if lang_info else False,
     }
-    if lang_info:
-        fb["detected_language"]  = lang_info.get("fallback", "en")
-        fb["language_supported"] = lang_info.get("supported", False)
-    else:
-        fb["detected_language"]  = "en"
-        fb["language_supported"] = False
     return fb
 
 
 # ─────────────────────────────────────────────
 # 🔹 GROQ CALL WITH RETRY + MODEL FALLBACK
 # ─────────────────────────────────────────────
-def call_groq_with_retry(prompt: str) -> str:
+def call_groq_with_retry(prompt: str, max_tokens: int = 1200) -> str:
     for model in MODEL_CHAIN:
         logger.info(f"Trying model: {model}")
         for attempt in range(1, MAX_RETRIES + 1):
@@ -125,7 +214,7 @@ def call_groq_with_retry(prompt: str) -> str:
                         {"role": "user", "content": prompt},
                     ],
                     temperature=0.1,
-                    max_tokens=800,
+                    max_tokens=max_tokens,  # increased from 800
                 )
                 logger.info(f"Success with model: {model}")
                 return response.choices[0].message.content
@@ -174,13 +263,6 @@ def analyze_claim(claim: str, context_text: str, dates: list) -> dict:
 
     language_name = LANGUAGE_NAMES.get(detected_language, "English")
 
-    # ─────────────────────────────────────────
-    # BUG FIX #3: Strengthened language instruction.
-    # The previous version only added a soft instruction block for non-English.
-    # LLMs still default to English for JSON text fields unless explicitly
-    # told in EVERY output rule. Now we embed the language requirement
-    # directly into the JSON format specification so it cannot be ignored.
-    # ─────────────────────────────────────────
     if detected_language != "en":
         language_instruction = f"""
 CRITICAL LANGUAGE REQUIREMENT:
@@ -233,19 +315,18 @@ DATES:
 {dates}
 
 IMPORTANT OUTPUT RULES:
-- Return ONLY valid JSON
-- No markdown
-- No explanations outside JSON
+- Return ONLY valid JSON — no markdown, no text before or after
+- Ensure all string values are properly closed with quotes
 - final_verdict MUST be one of: true / misleading / false / unclear
 
 JSON FORMAT:
 {json_example}"""
 
     try:
-        raw_response = call_groq_with_retry(prompt)
+        raw_response = call_groq_with_retry(prompt, max_tokens=1200)
         parsed       = parse_response(raw_response)
         logger.info(f"Verdict: {parsed.get('final_verdict')} | Score: {parsed.get('truth_score')}")
-        parsed = ensure_fields(parsed)
+        parsed = ensure_fields(parsed, lang=detected_language)
 
     except RuntimeError as e:
         logger.error(f"All models failed: {e}")
@@ -266,13 +347,12 @@ JSON FORMAT:
 
 
 # ─────────────────────────────────────────────
-# 🔹 EXPLAIN CLAIM  (new — for detail section)
+# 🔹 EXPLAIN CLAIM (language-aware)
 # ─────────────────────────────────────────────
 def explain_claim(claim: str, context_text: str, language: str = "en") -> str:
     """
-    Generate a neutral, detailed background explanation of the claim's topic
-    for users who have no prior knowledge of the subject.
-    Returns a plain text paragraph (not JSON).
+    Generate a neutral, detailed background explanation of the claim's topic.
+    Returns a plain text paragraph in the detected input language.
     """
     language_name = LANGUAGE_NAMES.get(language, "English")
 
@@ -313,7 +393,7 @@ Rules:
                     {"role": "user",   "content": prompt},
                 ],
                 temperature=0.3,
-                max_tokens=600,
+                max_tokens=700,
             )
             return response.choices[0].message.content.strip()
         except RateLimitError:
@@ -322,4 +402,5 @@ Rules:
             logger.error(f"explain_claim error on {model}: {e}")
             continue
 
-    return "Detailed explanation temporarily unavailable."
+    unavailable = get_fallback_str(language, "unavailable")
+    return unavailable

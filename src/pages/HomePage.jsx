@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { analyseText, analyseImage } from "../api";
 import { saveSearchHistory, getUserHistory, deleteHistoryItem } from "../services/historyService";
 
+// ── Constants ─────────────────────────────────────────────────────────────────
 const PILL = {
   danger:  { bg: "#FEE2E2", color: "#991B1B", icon: "✗" },
   warn:    { bg: "#FEF3C7", color: "#92400E", icon: "⚠" },
@@ -17,10 +18,7 @@ const ICON_STYLE = {
 };
 
 const REGION_GROUPS = [
-  {
-    label: "Global",
-    regions: ["International"],
-  },
+  { label: "Global", regions: ["International"] },
   {
     label: "States",
     regions: [
@@ -43,41 +41,201 @@ const REGION_GROUPS = [
 
 const TRUST_SOURCES = ["Reuters","AFP","AP News","The Hindu","Tribune","Snopes","Deccan Herald"];
 
-const LOADING_STEPS = [
-  { label: "Searching trusted sources", icon: "🔍" },
-  { label: "Reading articles",          icon: "📰" },
-  { label: "Running AI analysis",       icon: "🤖" },
-  { label: "Building your report",      icon: "✅" },
+// ── Step definitions for loading overlay ─────────────────────────────────────
+const TEXT_STEPS = [
+  { label: "Searching trusted sources", icon: "🔍", ms: 0    },
+  { label: "Reading articles",          icon: "📰", ms: 2500 },
+  { label: "Running AI analysis",       icon: "🤖", ms: 5500 },
+  { label: "Building your report",      icon: "✅", ms: 9000 },
 ];
 
-export default function HomePage() {
-  const navigate  = useNavigate();
-  const { user }  = useAuth();
-  const fileRef   = useRef(null);
+const IMAGE_STEPS = [
+  { label: "Reading image text (OCR)",  icon: "🖼", ms: 0     },
+  { label: "Detecting language",        icon: "🌐", ms: 12000 },
+  { label: "Searching trusted sources", icon: "🔍", ms: 18000 },
+  { label: "Running AI analysis",       icon: "🤖", ms: 26000 },
+  { label: "Building your report",      icon: "✅", ms: 34000 },
+];
 
-  const [mode, setMode]                     = useState("Text");
-  const [text, setText]                     = useState("");
-  const [image, setImage]                   = useState(null);
-  const [imagePreview, setImagePreview]     = useState(null);
-  const [focused, setFocused]               = useState(false);
-  const [loading, setLoading]               = useState(false);
-  const [loadingStep, setLoadingStep]       = useState(0);
-  const [error, setError]                   = useState("");
-  const [visible, setVisible]               = useState(false);
-  const [showFocusModal, setShowFocusModal] = useState(false);
-  const [selectedRegions, setSelectedRegions] = useState([]);
-  const [activeTab, setActiveTab]           = useState(0);
-  const [tickerPos, setTickerPos]           = useState(0);
-  const [historyData, setHistoryData]       = useState([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [deletingId, setDeletingId]         = useState(null);
-  const [hoveredRowId, setHoveredRowId]     = useState(null);
+const SLOW_MESSAGES = [
+  { ms: 15000, text: "OCR across 5 scripts takes a moment — almost there…"    },
+  { ms: 25000, text: "Cross-referencing multiple sources for accuracy…"        },
+  { ms: 40000, text: "Taking longer than usual" },
+  { ms: 55000, text: "Nearly done — AI is finalising the verdict…"            },
+];
 
-  // Ticker animation
+// ── Loading Overlay ───────────────────────────────────────────────────────────
+function LoadingOverlay({ mode }) {
+  const steps        = mode === "Image" ? IMAGE_STEPS : TEXT_STEPS;
+  const expectedTime = mode === "Image" ? "30–45 seconds" : "8–15 seconds";
+
+  const [elapsed, setElapsed]       = useState(0);
+  const [activeStep, setActiveStep] = useState(0);
+  const [slowMsg, setSlowMsg]       = useState("");
+  const startRef = useRef(Date.now());
+
+  // Tick every second
   useEffect(() => {
-    const id = setInterval(() => setTickerPos(p => p + 1), 2800);
+    const id = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
+    }, 1000);
     return () => clearInterval(id);
   }, []);
+
+  // Advance step based on elapsed time
+  useEffect(() => {
+    const ms = elapsed * 1000;
+    let step = 0;
+    for (let i = steps.length - 1; i >= 0; i--) {
+      if (ms >= steps[i].ms) { step = i; break; }
+    }
+    setActiveStep(step);
+  }, [elapsed, steps]);
+
+  // Slow messages
+  useEffect(() => {
+    const ms = elapsed * 1000;
+    let msg = "";
+    for (const m of SLOW_MESSAGES) {
+      if (ms >= m.ms) msg = m.text;
+    }
+    setSlowMsg(msg);
+  }, [elapsed]);
+
+  const maxMs    = mode === "Image" ? 45000 : 15000;
+  const progress = Math.min((elapsed * 1000) / maxMs * 95, 95);
+  const fmt      = (s) => `${Math.floor(s / 60) > 0 ? `${Math.floor(s / 60)}m ` : ""}${s % 60}s`;
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0,
+      background: "rgba(26,26,24,0.94)",
+      backdropFilter: "blur(12px)",
+      zIndex: 2000,
+      display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
+      padding: "24px",
+      animation: "fadeInOverlay 0.3s ease",
+    }}>
+      {/* Ambient glow */}
+      <div style={{ position: "absolute", width: 320, height: 320, borderRadius: "50%", background: "radial-gradient(circle, rgba(16,185,129,0.12) 0%, transparent 70%)", pointerEvents: "none" }} />
+
+      {/* Header label */}
+      <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.15em", color: "rgba(255,255,255,0.3)", marginBottom: 36, textAlign: "center" }}>
+        SUSCAN · {mode === "Image" ? "IMAGE ANALYSIS" : "VERIFYING"}
+      </div>
+
+      {/* Steps */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 16, width: 300, marginBottom: 40 }}>
+        {steps.map((step, i) => {
+          const done    = activeStep > i;
+          const active  = activeStep === i;
+          const pending = activeStep < i;
+          return (
+            <div key={i} style={{
+              display: "flex", alignItems: "center", gap: 14,
+              opacity: pending ? 0.2 : 1,
+              transform: active ? "translateX(4px)" : "translateX(0)",
+              transition: "opacity 0.5s ease, transform 0.5s ease",
+            }}>
+              <div style={{
+                width: 38, height: 38, borderRadius: 12, flexShrink: 0,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: done ? 15 : 18,
+                background: done ? "#D1FAE5" : active ? "#FAFAF8" : "rgba(255,255,255,0.07)",
+                color: done ? "#065F46" : "inherit",
+                transition: "all 0.4s ease",
+              }}>
+                {done ? "✓" : step.icon}
+              </div>
+              <div style={{ flex: 1 }}>
+                <span style={{
+                  fontSize: 14, fontWeight: active ? 600 : 400,
+                  color: active ? "#FAFAF8" : done ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.25)",
+                  transition: "all 0.4s ease",
+                }}>
+                  {step.label}
+                </span>
+                {active && (
+                  <span style={{ display: "inline-block", animation: "blink 1.4s steps(3,end) infinite", letterSpacing: 2, color: "rgba(255,255,255,0.4)", fontSize: 13 }}>...</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Progress bar */}
+      <div style={{ width: 300, marginBottom: 20 }}>
+        <div style={{ height: 3, background: "rgba(255,255,255,0.08)", borderRadius: 99, overflow: "hidden" }}>
+          <div style={{
+            height: "100%", borderRadius: 99,
+            background: "linear-gradient(90deg, #10B981, #34D399)",
+            width: `${progress}%`,
+            transition: "width 1s linear",
+          }} />
+        </div>
+      </div>
+
+      {/* Elapsed + expected */}
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
+        <span style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", fontVariantNumeric: "tabular-nums" }}>
+          {fmt(elapsed)} elapsed
+        </span>
+        <span style={{ width: 3, height: 3, borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "inline-block" }} />
+        <span style={{ fontSize: 13, color: "rgba(255,255,255,0.25)" }}>
+          Usually {expectedTime}
+        </span>
+      </div>
+
+      {/* Slow message */}
+      <div style={{
+        height: 36, fontSize: 12, color: "#F59E0B",
+        textAlign: "center", maxWidth: 300, lineHeight: 1.6,
+        opacity: slowMsg ? 1 : 0, transition: "opacity 0.6s ease",
+      }}>
+        {slowMsg}
+      </div>
+
+      {/* Image upfront notice — shown for first 8s only */}
+      {mode === "Image" && elapsed < 8 && (
+        <div style={{
+          marginTop: 20,
+          background: "rgba(255,255,255,0.05)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: 12, padding: "12px 18px",
+          fontSize: 12, color: "rgba(255,255,255,0.4)",
+          textAlign: "center", maxWidth: 300, lineHeight: 1.7,
+        }}>
+          📷 Image analysis reads text in 5 languages —{" "}
+          <strong style={{ color: "rgba(255,255,255,0.6)" }}>30–45 seconds</strong> for best accuracy
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
+export default function HomePage() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const fileRef  = useRef(null);
+
+  const [mode, setMode]                       = useState("Text");
+  const [text, setText]                       = useState("");
+  const [image, setImage]                     = useState(null);
+  const [imagePreview, setImagePreview]       = useState(null);
+  const [focused, setFocused]                 = useState(false);
+  const [loading, setLoading]                 = useState(false);
+  const [error, setError]                     = useState("");
+  const [visible, setVisible]                 = useState(false);
+  const [showFocusModal, setShowFocusModal]   = useState(false);
+  const [selectedRegions, setSelectedRegions] = useState([]);
+  const [activeTab, setActiveTab]             = useState(0);
+  const [historyData, setHistoryData]         = useState([]);
+  const [historyLoading, setHistoryLoading]   = useState(false);
+  const [deletingId, setDeletingId]           = useState(null);
+  const [hoveredRowId, setHoveredRowId]       = useState(null);
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 60);
@@ -89,13 +247,9 @@ export default function HomePage() {
     return () => { document.body.style.overflow = ""; };
   }, [showFocusModal]);
 
-  // Load history only for logged-in users
   useEffect(() => {
     async function loadHistory() {
-      if (!user) {
-        setHistoryData([]);
-        return;
-      }
+      if (!user) { setHistoryData([]); return; }
       setHistoryLoading(true);
       const data = await getUserHistory(user.uid);
       setHistoryData(data);
@@ -129,19 +283,12 @@ export default function HomePage() {
     if (mode === "Image" && !image) return;
     setError("");
     setLoading(true);
-    setLoadingStep(0);
-    const stepTimers = [
-      setTimeout(() => setLoadingStep(1), 1500),
-      setTimeout(() => setLoadingStep(2), 4000),
-      setTimeout(() => setLoadingStep(3), 7500),
-    ];
     try {
       const userId = user?.uid ?? "anonymous";
       const result = mode === "Text"
         ? await analyseText(text.trim(), userId, selectedRegions)
         : await analyseImage(image, userId, selectedRegions);
 
-      // Only save history for logged-in users
       if (user) {
         await saveSearchHistory({
           userId: user.uid,
@@ -150,8 +297,6 @@ export default function HomePage() {
           result,
           focusRegions: selectedRegions,
         });
-
-        // Refresh history list after saving
         const updated = await getUserHistory(user.uid);
         setHistoryData(updated);
       }
@@ -160,33 +305,30 @@ export default function HomePage() {
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
-      stepTimers.forEach(clearTimeout);
       setLoading(false);
-      setLoadingStep(0);
     }
   };
 
   const handleDelete = async (e, historyId) => {
-    e.stopPropagation(); // prevent row click / navigation
+    e.stopPropagation();
     if (!historyId || deletingId) return;
     setDeletingId(historyId);
     try {
       await deleteHistoryItem(historyId);
       setHistoryData(prev => prev.filter(h => (h.id ?? h) !== historyId));
     } catch {
-      // silently fail — could add a toast here
+      // silent fail
     } finally {
       setDeletingId(null);
     }
   };
 
-  const charCount  = text.trim() ? text.length : 0;
-  const canSubmit  = mode === "Text" ? (charCount > 0 && charCount <= 10000) : image !== null;
+  const charCount   = text.trim() ? text.length : 0;
+  const canSubmit   = mode === "Text" ? (charCount > 0 && charCount <= 10000) : image !== null;
   const groupCounts = REGION_GROUPS.map(g =>
     g.regions.filter(r => selectedRegions.includes(r)).length
   );
 
-  // Derive verdict label info from a history entry
   function getEntryMeta(h) {
     const verdict = h.result?.data?.analysis?.final_verdict ?? "unclear";
     const labelType =
@@ -206,64 +348,8 @@ export default function HomePage() {
   return (
     <div style={{ minHeight: "100vh", background: "#FAFAF8", fontFamily: "'DM Sans', sans-serif", color: "#1A1A18", overflowX: "hidden" }}>
 
-      {/* ── LOADING OVERLAY ────────────────────────────────────────────────── */}
-      {loading && (
-        <div style={{
-          position: "fixed", inset: 0,
-          background: "rgba(26,26,24,0.92)",
-          backdropFilter: "blur(12px)",
-          zIndex: 2000,
-          display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center",
-          animation: "fadeInOverlay 0.3s ease",
-        }}>
-          <div style={{ position: "absolute", width: 300, height: 300, borderRadius: "50%", background: "radial-gradient(circle, rgba(16,185,129,0.15) 0%, transparent 70%)", pointerEvents: "none" }} />
-
-          <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.15em", color: "rgba(255,255,255,0.3)", marginBottom: 40 }}>
-            SUSCAN · VERIFYING
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 18, width: 280 }}>
-            {LOADING_STEPS.map((step, i) => {
-              const done    = loadingStep > i;
-              const active  = loadingStep === i;
-              const pending = loadingStep < i;
-              return (
-                <div key={i} style={{
-                  display: "flex", alignItems: "center", gap: 14,
-                  opacity: pending ? 0.2 : 1,
-                  transform: active ? "translateX(4px)" : "translateX(0)",
-                  transition: "opacity 0.4s ease, transform 0.4s ease",
-                }}>
-                  <div style={{
-                    width: 36, height: 36, borderRadius: 12,
-                    background: done ? "#D1FAE5" : active ? "#FAFAF8" : "rgba(255,255,255,0.07)",
-                    border: active ? "none" : done ? "none" : "1px solid rgba(255,255,255,0.1)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: done ? 14 : 16, flexShrink: 0,
-                    transition: "all 0.3s ease",
-                    color: done ? "#065F46" : "inherit",
-                  }}>
-                    {done ? "✓" : step.icon}
-                  </div>
-                  <span style={{
-                    fontSize: 15, fontWeight: active ? 600 : 400,
-                    color: active ? "#FAFAF8" : done ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.3)",
-                    transition: "all 0.3s ease",
-                  }}>
-                    {step.label}
-                    {active && <span style={{ display: "inline-block", animation: "blink 1.4s steps(3,end) infinite", letterSpacing: 1 }}>...</span>}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          <div style={{ marginTop: 48, fontSize: 13, color: "rgba(255,255,255,0.25)" }}>
-            Usually takes 8–12 seconds
-          </div>
-        </div>
-      )}
+      {/* ── LOADING OVERLAY ──────────────────────────────────────────────── */}
+      {loading && <LoadingOverlay mode={mode} />}
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=DM+Serif+Display:ital@0;1&display=swap');
@@ -304,10 +390,7 @@ export default function HomePage() {
           transition: all 0.2s ease; display: flex; align-items: center; gap: 7px;
         }
         .mode-btn:hover:not(.active) { border-color: #C5C3BB; color: #1A1A18; background: #F7F6F2; }
-        .mode-btn.active {
-          background: #1A1A18; color: #FAFAF8; border-color: #1A1A18;
-          box-shadow: 0 4px 14px rgba(26,26,24,0.18);
-        }
+        .mode-btn.active { background: #1A1A18; color: #FAFAF8; border-color: #1A1A18; box-shadow: 0 4px 14px rgba(26,26,24,0.18); }
 
         .focus-btn {
           display: flex; align-items: center; gap: 7px;
@@ -318,10 +401,7 @@ export default function HomePage() {
           transition: all 0.2s ease; margin-left: auto;
         }
         .focus-btn:hover:not(.has-regions) { border-color: #C5C3BB; color: #1A1A18; }
-        .focus-btn.has-regions {
-          background: #1A1A18; color: #FAFAF8; border-color: #1A1A18;
-          box-shadow: 0 4px 14px rgba(26,26,24,0.18);
-        }
+        .focus-btn.has-regions { background: #1A1A18; color: #FAFAF8; border-color: #1A1A18; box-shadow: 0 4px 14px rgba(26,26,24,0.18); }
 
         .analyse-btn {
           background: #1A1A18; color: #FAFAF8; border: none;
@@ -329,8 +409,7 @@ export default function HomePage() {
           font-size: 14px; font-family: 'DM Sans', sans-serif;
           font-weight: 700; cursor: pointer;
           transition: all 0.25s cubic-bezier(0.16,1,0.3,1);
-          box-shadow: 0 4px 14px rgba(26,26,24,0.15);
-          letter-spacing: -0.1px;
+          box-shadow: 0 4px 14px rgba(26,26,24,0.15); letter-spacing: -0.1px;
         }
         .analyse-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(26,26,24,0.22); }
         .analyse-btn:active:not(:disabled) { transform: scale(0.97); }
@@ -355,11 +434,9 @@ export default function HomePage() {
 
         .history-card { background: #fff; border: 1.5px solid #E2E0D8; border-radius: 20px; padding: 6px; }
         .history-row {
-          display: flex; align-items: center; gap: 14px; padding: 14px 14px;
-          border-radius: 14px; cursor: pointer;
-          transition: all 0.22s ease;
-          border-bottom: 1px solid #F2F1EC;
-          position: relative;
+          display: flex; align-items: center; gap: 14px; padding: 14px;
+          border-radius: 14px; cursor: pointer; transition: all 0.22s ease;
+          border-bottom: 1px solid #F2F1EC; position: relative;
         }
         .history-row:last-child { border-bottom: none; }
         .history-row:hover { background: #F7F6F2; }
@@ -367,29 +444,15 @@ export default function HomePage() {
         .history-row:hover .history-arrow { opacity: 1; transform: translateX(0); color: #1A1A18; }
 
         .delete-btn {
-          opacity: 0;
-          width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
+          opacity: 0; width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
           background: transparent; border: 1.5px solid transparent;
           display: flex; align-items: center; justify-content: center;
           cursor: pointer; font-size: 14px; color: #AEADA6;
-          transition: all 0.18s ease;
-          font-family: 'DM Sans', sans-serif;
+          transition: all 0.18s ease; font-family: 'DM Sans', sans-serif;
         }
-        .history-row:hover .delete-btn {
-          opacity: 1;
-        }
-        .delete-btn:hover {
-          background: #FEE2E2 !important;
-          border-color: #FECACA !important;
-          color: #991B1B !important;
-        }
-        .delete-btn.deleting {
-          opacity: 1;
-          background: #FEF2F2;
-          border-color: #FECACA;
-          color: #991B1B;
-          animation: spin 0.7s linear infinite;
-        }
+        .history-row:hover .delete-btn { opacity: 1; }
+        .delete-btn:hover { background: #FEE2E2 !important; border-color: #FECACA !important; color: #991B1B !important; }
+        .delete-btn.deleting { opacity: 1; background: #FEF2F2; border-color: #FECACA; color: #991B1B; animation: spin 0.7s linear infinite; }
 
         .group-tab {
           flex: 1; background: none; border: none; font-family: 'DM Sans', sans-serif;
@@ -424,24 +487,18 @@ export default function HomePage() {
           padding: 5px 12px; font-size: 12px; font-weight: 600;
           font-family: 'DM Sans', sans-serif; display: inline-flex; align-items: center; gap: 6px;
         }
-        .region-chip-x {
-          background: none; border: none; color: rgba(255,255,255,0.6);
-          cursor: pointer; font-size: 14px; line-height: 1; padding: 0;
-          transition: color 0.15s;
-        }
+        .region-chip-x { background: none; border: none; color: rgba(255,255,255,0.6); cursor: pointer; font-size: 14px; line-height: 1; padding: 0; transition: color 0.15s; }
         .region-chip-x:hover { color: #fff; }
 
         @keyframes fadeInOverlay { from{opacity:0} to{opacity:1} }
         @keyframes slideUpModal  { from{opacity:0;transform:translateY(16px) scale(0.97)} to{opacity:1;transform:none} }
-        @keyframes spin  { to{transform:rotate(360deg)} }
-        @keyframes blink { 0%{opacity:0} 50%{opacity:1} 100%{opacity:0} }
-        @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.6;transform:scale(1.4)} }
+        @keyframes spin   { to{transform:rotate(360deg)} }
+        @keyframes blink  { 0%{opacity:0} 50%{opacity:1} 100%{opacity:0} }
+        @keyframes pulse  { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.6;transform:scale(1.4)} }
         @keyframes shimmer { 0%{background-position:-400px 0} 100%{background-position:400px 0} }
         .skeleton {
           background: linear-gradient(90deg, #F0EFEA 25%, #E5E3DC 50%, #F0EFEA 75%);
-          background-size: 400px 100%;
-          animation: shimmer 1.4s ease infinite;
-          border-radius: 8px;
+          background-size: 400px 100%; animation: shimmer 1.4s ease infinite; border-radius: 8px;
         }
       `}</style>
 
@@ -457,14 +514,11 @@ export default function HomePage() {
 
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 8,
-            background: "#fff", border: "1px solid #E2E0D8",
-            borderRadius: 99, padding: "6px 16px",
-            fontSize: 11, fontWeight: 700, color: "#888780",
+            background: "#fff", border: "1px solid #E2E0D8", borderRadius: 99,
+            padding: "6px 16px", fontSize: 11, fontWeight: 700, color: "#888780",
             marginBottom: 32, letterSpacing: "0.06em",
-            opacity: visible ? 1 : 0,
-            transform: visible ? "translateY(0)" : "translateY(14px)",
-            transition: "all 0.5s ease",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+            opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(14px)",
+            transition: "all 0.5s ease", boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
           }}>
             <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#10B981", display: "inline-block", animation: "pulse 2s ease-in-out infinite" }} />
             AI-POWERED · INDIA & BEYOND
@@ -473,39 +527,29 @@ export default function HomePage() {
           <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "clamp(38px, 7vw, 62px)", lineHeight: 1.1, letterSpacing: "-1.5px", marginBottom: 22 }}>
             {["Is", "it", "true?"].map((word, i) => (
               <span key={i} className="word-reveal" style={{ marginRight: "0.22em" }}>
-                <span className={`word-inner ${visible ? "in" : ""}`} style={{ transitionDelay: `${80 + i * 90}ms` }}>
-                  {word}
-                </span>
+                <span className={`word-inner ${visible ? "in" : ""}`} style={{ transitionDelay: `${80 + i * 90}ms` }}>{word}</span>
               </span>
             ))}
             <span className="word-reveal" style={{ marginRight: "0.22em" }}>
-              <span className={`word-inner ${visible ? "in" : ""}`} style={{ transitionDelay: "380ms", fontStyle: "italic", color: "#888780", fontWeight: 300 }}>
-                Find out.
-              </span>
+              <span className={`word-inner ${visible ? "in" : ""}`} style={{ transitionDelay: "380ms", fontStyle: "italic", color: "#888780", fontWeight: 300 }}>Find out.</span>
             </span>
           </h1>
 
           <p style={{
-            fontSize: 14, color: "#666460", lineHeight: 1.75,
-            maxWidth: "100%", margin: "0 auto 24px",
-            opacity: visible ? 1 : 0,
-            transform: visible ? "translateY(0)" : "translateY(16px)",
+            fontSize: 14, color: "#666460", lineHeight: 1.75, maxWidth: "100%", margin: "0 auto 24px",
+            opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(16px)",
             transition: "all 0.6s ease 550ms",
           }}>
             Paste a headline or upload an image. We check it against 170+ trusted sources and deliver a verdict.
           </p>
-
-
         </div>
 
         {/* ── TRUST TICKER ─────────────────────────────────────────────────── */}
         <div className={`fade-up ${visible ? "in" : ""}`} style={{ transitionDelay: "200ms", marginBottom: 32, overflow: "hidden" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 0, borderTop: "1px solid #EEEDE8", borderBottom: "1px solid #EEEDE8", padding: "12px 0", position: "relative" }}>
+          <div style={{ display: "flex", alignItems: "center", borderTop: "1px solid #EEEDE8", borderBottom: "1px solid #EEEDE8", padding: "12px 0", position: "relative" }}>
             <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 60, background: "linear-gradient(to right, #FAFAF8, transparent)", zIndex: 2, pointerEvents: "none" }} />
             <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 60, background: "linear-gradient(to left, #FAFAF8, transparent)", zIndex: 2, pointerEvents: "none" }} />
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: "#AEADA6", whiteSpace: "nowrap", padding: "0 20px", flexShrink: 0, zIndex: 3 }}>
-              SOURCES
-            </div>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: "#AEADA6", whiteSpace: "nowrap", padding: "0 20px", flexShrink: 0, zIndex: 3 }}>SOURCES</div>
             <div style={{ overflow: "hidden", flex: 1 }}>
               <div className="ticker-track">
                 {[...TRUST_SOURCES, ...TRUST_SOURCES].map((s, i) => (
@@ -531,12 +575,8 @@ export default function HomePage() {
               <button className={`mode-btn ${mode === "Image" ? "active" : ""}`} onClick={() => { setMode("Image"); setError(""); }}>
                 <span>🖼</span> Upload image
               </button>
-              <button
-                className={`focus-btn ${selectedRegions.length > 0 ? "has-regions" : ""}`}
-                onClick={() => setShowFocusModal(true)}
-              >
-                <span>🎯</span>
-                Focus Mode
+              <button className={`focus-btn ${selectedRegions.length > 0 ? "has-regions" : ""}`} onClick={() => setShowFocusModal(true)}>
+                <span>🎯</span> Focus Mode
                 {selectedRegions.length > 0 && (
                   <span style={{ background: "rgba(255,255,255,0.22)", borderRadius: 99, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>
                     {selectedRegions.length}
@@ -545,41 +585,36 @@ export default function HomePage() {
               </button>
             </div>
 
-            {/* ── Text input ── */}
+            {/* Image mode hint */}
+            {mode === "Image" && !imagePreview && (
+              <div style={{ marginBottom: 14, background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "#92400E", display: "flex", alignItems: "center", gap: 8 }}>
+                <span>⏱</span> Image analysis takes <strong>30–45 seconds</strong> — reads text across 5 language scripts
+              </div>
+            )}
+
+            {/* Text input */}
             {mode === "Text" && (
               <>
-                <div style={{
-                  border: "1.5px solid #EEEDE8", borderRadius: 16,
-                  padding: "16px 18px", background: "#FAFAF8",
-                  transition: "border-color 0.2s ease",
-                  ...(focused ? { borderColor: "#C5C3BB" } : {}),
-                }}>
+                <div style={{ border: "1.5px solid #EEEDE8", borderRadius: 16, padding: "16px 18px", background: "#FAFAF8", transition: "border-color 0.2s ease", ...(focused ? { borderColor: "#C5C3BB" } : {}) }}>
                   <textarea
                     value={text}
                     onChange={e => setText(e.target.value)}
                     onFocus={() => setFocused(true)}
                     onBlur={() => setFocused(false)}
                     placeholder="Paste a headline, article text, or social media post…"
-                    style={{
-                      width: "100%", border: "none", outline: "none",
-                      fontSize: 15, fontFamily: "'DM Sans', sans-serif",
-                      color: "#1A1A18", background: "transparent",
-                      resize: "none", lineHeight: 1.7, minHeight: 108,
-                    }}
+                    style={{ width: "100%", border: "none", outline: "none", fontSize: 15, fontFamily: "'DM Sans', sans-serif", color: "#1A1A18", background: "transparent", resize: "none", lineHeight: 1.7, minHeight: 108 }}
                   />
                 </div>
                 <div style={{ marginTop: 12, display: "flex", gap: 7, alignItems: "center", flexWrap: "wrap" }}>
                   <span style={{ fontSize: 12, fontWeight: 600, color: "#AEADA6" }}>Try:</span>
                   {["India becomes richest country", "Aliens landed in Delhi", "Govt bans all social media"].map(s => (
-                    <button key={s} className="sample-pill" onClick={() => setText(s)}>
-                      "{s}"
-                    </button>
+                    <button key={s} className="sample-pill" onClick={() => setText(s)}>"{s}"</button>
                   ))}
                 </div>
               </>
             )}
 
-            {/* ── Image input ── */}
+            {/* Image input */}
             {mode === "Image" && (
               <div
                 className={`drop-zone ${imagePreview ? "has-image" : ""}`}
@@ -642,15 +677,10 @@ export default function HomePage() {
 
           {/* Auth hint */}
           <p style={{ fontSize: 12, color: "#AEADA6", textAlign: "center", marginTop: 14, lineHeight: 1.6 }}>
-            {user
-              ? `Signed in as ${user.displayName ?? user.email}`
-              : "No account needed · Sign in to save history"}
+            {user ? `Signed in as ${user.displayName ?? user.email}` : "No account needed · Sign in to save history"}
           </p>
 
-          <div style={{
-            display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap",
-            marginTop: 24, opacity: visible ? 1 : 0, transition: "opacity 0.6s ease 750ms",
-          }}>
+          <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap", marginTop: 24, opacity: visible ? 1 : 0, transition: "opacity 0.6s ease 750ms" }}>
             {[
               { label: "✓ VERIFIED",             bg: "#D1FAE5", color: "#065F46" },
               { label: "⚠ PARTIALLY MISLEADING", bg: "#FEF3C7", color: "#92400E" },
@@ -663,7 +693,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* ── HOW IT WORKS STRIP ───────────────────────────────────────────── */}
+        {/* ── HOW IT WORKS ─────────────────────────────────────────────────── */}
         <div className={`fade-up ${visible ? "in" : ""}`} style={{ transitionDelay: "200ms", marginTop: 48 }}>
           <div style={{ background: "#fff", border: "1.5px solid #E2E0D8", borderRadius: 20, padding: "28px 32px" }}>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: "#AEADA6", marginBottom: 20 }}>HOW IT WORKS</div>
@@ -672,7 +702,7 @@ export default function HomePage() {
                 { icon: "✍️", step: "01", title: "Paste claim",    desc: "Headline, post, or image" },
                 { icon: "🔍", step: "02", title: "We search",       desc: "170+ trusted sources" },
                 { icon: "🤖", step: "03", title: "AI cross-checks", desc: "Bias & truth scored" },
-                { icon: "📊", step: "04", title: "Get verdict",     desc: "Full report in ~10s" },
+                { icon: "📊", step: "04", title: "Get verdict",     desc: "Text ~10s · Image ~35s" },
               ].map((s, i) => (
                 <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -695,12 +725,10 @@ export default function HomePage() {
               <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1A1A18", letterSpacing: "-0.2px" }}>Recent Checks</h2>
             </div>
             {user && (
-              <button
-                onClick={() => navigate("/history")}
+              <button onClick={() => navigate("/history")}
                 style={{ background: "none", border: "none", fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600, color: "#888780", cursor: "pointer", transition: "color 0.2s" }}
                 onMouseEnter={e => e.currentTarget.style.color = "#1A1A18"}
-                onMouseLeave={e => e.currentTarget.style.color = "#888780"}
-              >
+                onMouseLeave={e => e.currentTarget.style.color = "#888780"}>
                 View all →
               </button>
             )}
@@ -708,86 +736,49 @@ export default function HomePage() {
 
           {user ? (
             <div className="history-card">
-              {/* Loading skeleton */}
-              {historyLoading && (
-                [1, 2, 3].map(i => (
-                  <div key={i} className="history-row" style={{ pointerEvents: "none" }}>
-                    <div className="skeleton" style={{ width: 44, height: 44, borderRadius: 13, flexShrink: 0 }} />
-                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-                      <div className="skeleton" style={{ height: 14, width: "70%" }} />
-                      <div className="skeleton" style={{ height: 11, width: "30%" }} />
-                    </div>
-                    <div className="skeleton" style={{ width: 80, height: 24, borderRadius: 99 }} />
+              {historyLoading && [1,2,3].map(i => (
+                <div key={i} className="history-row" style={{ pointerEvents: "none" }}>
+                  <div className="skeleton" style={{ width: 44, height: 44, borderRadius: 13, flexShrink: 0 }} />
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div className="skeleton" style={{ height: 14, width: "70%" }} />
+                    <div className="skeleton" style={{ height: 11, width: "30%" }} />
                   </div>
-                ))
-              )}
+                  <div className="skeleton" style={{ width: 80, height: 24, borderRadius: 99 }} />
+                </div>
+              ))}
 
-              {/* Empty state */}
               {!historyLoading && historyData.length === 0 && (
                 <div style={{ padding: "32px 20px", textAlign: "center" }}>
                   <div style={{ fontSize: 28, marginBottom: 10 }}>🔍</div>
-                  <p style={{ fontSize: 14, color: "#888780", lineHeight: 1.6 }}>
-                    No checks yet — analyse your first claim above!
-                  </p>
+                  <p style={{ fontSize: 14, color: "#888780", lineHeight: 1.6 }}>No checks yet — analyse your first claim above!</p>
                 </div>
               )}
 
-              {/* Real history rows */}
               {!historyLoading && historyData.slice(0, 3).map((h, i) => {
                 const { verdict, pill, icon, timeLabel } = getEntryMeta(h);
                 const rowId = h.id ?? i;
                 const isDeleting = deletingId === rowId;
                 return (
-                  <div
-                    key={rowId}
-                    className="history-row"
+                  <div key={rowId} className="history-row"
                     onMouseEnter={() => setHoveredRowId(rowId)}
                     onMouseLeave={() => setHoveredRowId(null)}
-                    onClick={() => !isDeleting && navigate("/result", { state: { result: h.result } })}
-                  >
-                    {/* Icon badge */}
-                    <div style={{
-                      width: 44, height: 44, borderRadius: 13, flexShrink: 0,
-                      background: icon.bg, display: "flex", alignItems: "center",
-                      justifyContent: "center", fontSize: 13, fontWeight: 700, color: icon.color,
-                    }}>
+                    onClick={() => !isDeleting && navigate("/result", { state: { result: h.result } })}>
+                    <div style={{ width: 44, height: 44, borderRadius: 13, flexShrink: 0, background: icon.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: icon.color }}>
                       {h.inputType === "image" ? "I" : "T"}
                     </div>
-
-                    {/* Query text + time */}
                     <div style={{ flex: 1, overflow: "hidden" }}>
-                      <div style={{
-                        fontSize: 14, color: "#1A1A18", lineHeight: 1.4,
-                        overflow: "hidden", textOverflow: "ellipsis",
-                        whiteSpace: "nowrap", fontWeight: 500,
-                      }}>
+                      <div style={{ fontSize: 14, color: "#1A1A18", lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>
                         {h.query}
                       </div>
-                      <div style={{ fontSize: 12, color: "#AEADA6", marginTop: 3 }}>
-                        {timeLabel}
-                      </div>
+                      <div style={{ fontSize: 12, color: "#AEADA6", marginTop: 3 }}>{timeLabel}</div>
                     </div>
-
-                    {/* Verdict pill + delete + arrow */}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                      <span style={{
-                        fontSize: 11, fontWeight: 700, padding: "4px 11px",
-                        borderRadius: 99, background: pill.bg, color: pill.color,
-                        display: "flex", alignItems: "center", gap: 5,
-                      }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: "4px 11px", borderRadius: 99, background: pill.bg, color: pill.color, display: "flex", alignItems: "center", gap: 5 }}>
                         {pill.icon} {verdict}
                       </span>
-
-                      {/* Delete button */}
-                      <button
-                        className={`delete-btn ${isDeleting ? "deleting" : ""}`}
-                        onClick={e => handleDelete(e, rowId)}
-                        title="Remove from history"
-                        disabled={isDeleting}
-                      >
+                      <button className={`delete-btn ${isDeleting ? "deleting" : ""}`} onClick={e => handleDelete(e, rowId)} title="Remove" disabled={isDeleting}>
                         {isDeleting ? "○" : "✕"}
                       </button>
-
                       <span className="history-arrow">→</span>
                     </div>
                   </div>
@@ -795,21 +786,11 @@ export default function HomePage() {
               })}
             </div>
           ) : (
-            /* Not logged in */
             <div style={{ padding: "36px 24px", textAlign: "center", background: "#fff", border: "1.5px dashed #E2E0D8", borderRadius: 20 }}>
               <div style={{ fontSize: 32, marginBottom: 12 }}>🔐</div>
-              <p style={{ fontSize: 14, color: "#888780", marginBottom: 16, lineHeight: 1.6 }}>
-                Sign in to save and revisit your analysis history
-              </p>
-              <button
-                onClick={() => navigate("/login")}
-                style={{
-                  background: "#1A1A18", color: "#FAFAF8", border: "none",
-                  borderRadius: 12, padding: "10px 22px", fontSize: 13,
-                  fontWeight: 700, fontFamily: "'DM Sans', sans-serif", cursor: "pointer",
-                  boxShadow: "0 4px 14px rgba(26,26,24,0.15)",
-                }}
-              >
+              <p style={{ fontSize: 14, color: "#888780", marginBottom: 16, lineHeight: 1.6 }}>Sign in to save and revisit your analysis history</p>
+              <button onClick={() => navigate("/login")}
+                style={{ background: "#1A1A18", color: "#FAFAF8", border: "none", borderRadius: 12, padding: "10px 22px", fontSize: 13, fontWeight: 700, fontFamily: "'DM Sans', sans-serif", cursor: "pointer", boxShadow: "0 4px 14px rgba(26,26,24,0.15)" }}>
                 Sign in →
               </button>
             </div>
@@ -820,10 +801,8 @@ export default function HomePage() {
 
       {/* ── FOCUS MODE MODAL ───────────────────────────────────────────────── */}
       {showFocusModal && (
-        <div
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999, padding: 16, animation: "fadeInOverlay 0.18s ease" }}
-          onClick={e => { if (e.target === e.currentTarget) setShowFocusModal(false); }}
-        >
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999, padding: 16, animation: "fadeInOverlay 0.18s ease" }}
+          onClick={e => { if (e.target === e.currentTarget) setShowFocusModal(false); }}>
           <div style={{ width: 600, maxWidth: "94vw", background: "#FAFAF8", border: "1px solid #EEEDE8", borderRadius: 28, boxShadow: "0 32px 72px rgba(0,0,0,0.14)", display: "flex", flexDirection: "column", overflow: "hidden", maxHeight: "90vh", animation: "slideUpModal 0.22s cubic-bezier(0.16,1,0.3,1)" }}>
 
             <div style={{ padding: "28px 28px 0", flexShrink: 0 }}>
@@ -848,14 +827,11 @@ export default function HomePage() {
                   </button>
                 </div>
               </div>
-
               <div style={{ display: "flex", gap: 4, background: "#F0EFEA", borderRadius: 14, padding: 4, marginBottom: 24 }}>
                 {REGION_GROUPS.map((g, i) => (
                   <button key={g.label} className={`group-tab ${activeTab === i ? "active" : ""}`} onClick={() => setActiveTab(i)}>
                     {g.label}
-                    {groupCounts[i] > 0 && (
-                      <span className={`tab-badge ${activeTab === i ? "" : "dim"}`}>{groupCounts[i]}</span>
-                    )}
+                    {groupCounts[i] > 0 && <span className={`tab-badge ${activeTab === i ? "" : "dim"}`}>{groupCounts[i]}</span>}
                   </button>
                 ))}
               </div>
@@ -865,10 +841,8 @@ export default function HomePage() {
               {REGION_GROUPS.map((group, i) => (
                 <div key={group.label} style={{
                   position: "absolute", inset: 0, left: 28, right: 28,
-                  opacity: activeTab === i ? 1 : 0,
-                  pointerEvents: activeTab === i ? "auto" : "none",
-                  transition: "opacity 0.2s ease",
-                  display: "grid",
+                  opacity: activeTab === i ? 1 : 0, pointerEvents: activeTab === i ? "auto" : "none",
+                  transition: "opacity 0.2s ease", display: "grid",
                   gridTemplateColumns: i === 0 ? "1fr" : "repeat(auto-fill, minmax(152px,1fr))",
                   gap: 8, alignContent: "start", overflowY: "auto",
                 }}>
@@ -887,9 +861,7 @@ export default function HomePage() {
 
             <div style={{ padding: "20px 28px 28px", borderTop: "1px solid #EEEDE8", marginTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
               <span style={{ fontSize: 13, color: "#888780" }}>
-                {selectedRegions.length === 0
-                  ? "No regions selected — using global sources"
-                  : `${selectedRegions.length} region${selectedRegions.length !== 1 ? "s" : ""} selected`}
+                {selectedRegions.length === 0 ? "No regions selected — using global sources" : `${selectedRegions.length} region${selectedRegions.length !== 1 ? "s" : ""} selected`}
               </span>
               <div style={{ display: "flex", gap: 10 }}>
                 <button onClick={() => setShowFocusModal(false)}

@@ -2,18 +2,15 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 
-// ─────────────────────────────────────────────
-// Shared API base — change once for dev vs prod
-// ─────────────────────────────────────────────
 const API_BASE = "http://127.0.0.1:8000";
 
-// ── Intersection Observer hook ────────────────────────────────────────────────
-function useInView(threshold = 0.12) {
+// ── hooks ─────────────────────────────────────────────────────────────────────
+function useInView(threshold = 0.1) {
   const ref = useRef(null);
   const [inView, setInView] = useState(false);
   useEffect(() => {
     const obs = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) { setInView(true); obs.disconnect(); } },
+      ([e]) => { if (e.isIntersecting) { setInView(true); obs.disconnect(); } },
       { threshold }
     );
     if (ref.current) obs.observe(ref.current);
@@ -22,152 +19,112 @@ function useInView(threshold = 0.12) {
   return [ref, inView];
 }
 
-// ── Animated score counter ────────────────────────────────────────────────────
-function ScoreCounter({ target, duration = 1400 }) {
+function useCountUp(target, duration = 1200, delay = 400) {
   const [val, setVal] = useState(0);
-  const [started, setStarted] = useState(false);
   useEffect(() => {
-    if (!started) return;
-    let start = null;
-    const step = (ts) => {
-      if (!start) start = ts;
-      const p = Math.min((ts - start) / duration, 1);
-      setVal(Math.floor((1 - Math.pow(1 - p, 4)) * target));
-      if (p < 1) requestAnimationFrame(step);
-    };
-    requestAnimationFrame(step);
-  }, [started, target, duration]);
-  useEffect(() => { const t = setTimeout(() => setStarted(true), 600); return () => clearTimeout(t); }, []);
-  return <>{val}</>;
+    const t = setTimeout(() => {
+      let start = null;
+      const step = (ts) => {
+        if (!start) start = ts;
+        const p = Math.min((ts - start) / duration, 1);
+        setVal(Math.floor((1 - Math.pow(1 - p, 3)) * target));
+        if (p < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }, delay);
+    return () => clearTimeout(t);
+  }, [target, duration, delay]);
+  return val;
 }
 
-// ── Article Card ──────────────────────────────────────────────────────────────
-function ArticleCard({ article, index }) {
-  const [ref, inView] = useInView(0.08);
-  const [expanded, setExpanded] = useState(false);
-  const [showFull, setShowFull] = useState(false);
-  return (
-    <div ref={ref} style={{ opacity: inView ? 1 : 0, transform: inView ? "translateY(0)" : "translateY(36px)", transition: `opacity 0.65s ease ${index * 90}ms, transform 0.65s ease ${index * 90}ms` }}>
-      <div className="article-card">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18, gap: 12 }}>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#888780", letterSpacing: "0.07em", marginBottom: 6 }}>{article.source}</div>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#D1FAE5", color: "#065F46", borderRadius: 99, padding: "4px 12px", fontSize: 12, fontWeight: 700 }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981", display: "inline-block" }} />
-              Trusted · Score {article.score}
-            </div>
-          </div>
-          <a href={article.url} target="_blank" rel="noreferrer"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#F7F6F2", border: "1px solid #EEEDE8", borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 700, color: "#1A1A18", textDecoration: "none", transition: "all 0.2s ease", flexShrink: 0 }}
-            onMouseEnter={e => { e.currentTarget.style.background = "#1A1A18"; e.currentTarget.style.color = "#FAFAF8"; }}
-            onMouseLeave={e => { e.currentTarget.style.background = "#F7F6F2"; e.currentTarget.style.color = "#1A1A18"; }}>
-            Visit ↗
-          </a>
-        </div>
-        <h3 style={{ fontSize: 20, fontFamily: "'DM Serif Display', serif", lineHeight: 1.35, color: "#1A1A18", marginBottom: 14 }}>{article.title}</h3>
-        <p style={{ fontSize: 14, color: "#666460", lineHeight: 1.8, marginBottom: 20 }}>{article.snippet}</p>
-        <button onClick={() => setExpanded(!expanded)} className="expand-btn"
-          style={{ display: "inline-flex", alignItems: "center", gap: 8, background: expanded ? "#1A1A18" : "transparent", color: expanded ? "#FAFAF8" : "#1A1A18", border: "1.5px solid #1A1A18", borderRadius: 10, padding: "9px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all 0.2s ease" }}>
-          {expanded ? "Hide Article ▲" : "Read Full Article ▼"}
-        </button>
-        <div style={{ display: "grid", gridTemplateRows: expanded ? "1fr" : "0fr", transition: "grid-template-rows 0.4s cubic-bezier(0.16,1,0.3,1)" }}>
-          <div style={{ overflow: "hidden" }}>
-            <div style={{ marginTop: 24, background: "#FAFAF8", border: "1px solid #EEEDE8", borderRadius: 14, padding: 20, lineHeight: 1.85, fontSize: 14, color: "#444", whiteSpace: "pre-wrap", maxHeight: 380, overflowY: "auto" }}>
-              {showFull ? article.full_text : `${article.full_text?.slice(0, 800)}...`}
-            </div>
-            <button onClick={() => setShowFull(!showFull)} style={{ marginTop: 12, border: "none", background: "transparent", cursor: "pointer", fontWeight: 700, fontSize: 13, color: "#888780" }}>
-              {showFull ? "Show Less ▲" : "Show More ▼"}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+// ── verdict config ────────────────────────────────────────────────────────────
+function getVerdictConfig(v) {
+  const map = {
+    true:                  { label: "Verified",            color: "#0D9488", bg: "#F0FDFA", border: "#99F6E4", icon: "✓", ring: "#14B8A6" },
+    verified:              { label: "Verified",            color: "#0D9488", bg: "#F0FDFA", border: "#99F6E4", icon: "✓", ring: "#14B8A6" },
+    false:                 { label: "False",               color: "#DC2626", bg: "#FFF1F2", border: "#FECDD3", icon: "✗", ring: "#F43F5E" },
+    misleading:            { label: "Misleading",          color: "#DC2626", bg: "#FFF1F2", border: "#FECDD3", icon: "✗", ring: "#F43F5E" },
+    "partially misleading":{ label: "Partly Misleading",  color: "#B45309", bg: "#FFFBEB", border: "#FDE68A", icon: "⚠", ring: "#F59E0B" },
+    unclear:               { label: "Unclear",             color: "#4B5563", bg: "#F9FAFB", border: "#E5E7EB", icon: "?", ring: "#9CA3AF" },
+  };
+  return map[v] || map.unclear;
 }
 
-// ── Section wrapper ───────────────────────────────────────────────────────────
-function FadeSection({ children, delay = 0, threshold = 0.1 }) {
-  const [ref, inView] = useInView(threshold);
+function getRecencyConfig(r) {
+  const map = {
+    recent:        { label: "Recent",     sub: "Last 7 days",    dot: "#10B981", bg: "#ECFDF5", color: "#065F46" },
+    not_recent:    { label: "Older",      sub: "7–30 days ago",  dot: "#F59E0B", bg: "#FFFBEB", color: "#92400E" },
+    long_time_ago: { label: "Outdated",   sub: "1+ months ago",  dot: "#EF4444", bg: "#FFF1F2", color: "#991B1B" },
+    ongoing:       { label: "Ongoing",    sub: "Still developing",dot: "#3B82F6", bg: "#EFF6FF", color: "#1E40AF" },
+    unclear:       { label: "Unknown",    sub: "Recency unclear", dot: "#9CA3AF", bg: "#F9FAFB", color: "#4B5563" },
+  };
+  return map[r] || map.unclear;
+}
+
+// ── small components ──────────────────────────────────────────────────────────
+function Pill({ children, color, bg, border }) {
   return (
-    <div ref={ref} style={{ opacity: inView ? 1 : 0, transform: inView ? "translateY(0)" : "translateY(30px)", transition: `opacity 0.65s ease ${delay}ms, transform 0.65s ease ${delay}ms` }}>
+    <span style={{ display:"inline-flex", alignItems:"center", gap:6, background:bg, color, border:`1px solid ${border}`, borderRadius:99, padding:"4px 12px", fontSize:12, fontWeight:700, letterSpacing:"0.03em" }}>
       {children}
-    </div>
+    </span>
   );
 }
 
-// ─────────────────────────────────────────────
-// Shared helpers for translation UI
-// ─────────────────────────────────────────────
-function TranslateButton({ label, isActive, isLoading, hasTranslation, onClick }) {
-  return (
-    <button onClick={onClick} disabled={isLoading}
-      style={{ display: "inline-flex", alignItems: "center", gap: 8, background: isActive ? "#1A1A18" : "#F7F6F2", color: isActive ? "#FAFAF8" : "#1A1A18", border: `1.5px solid ${isActive ? "#1A1A18" : "#EEEDE8"}`, borderRadius: 10, padding: "9px 18px", fontSize: 13, fontWeight: 700, cursor: isLoading ? "wait" : "pointer", transition: "all 0.2s ease", opacity: isLoading ? 0.7 : 1 }}
-      onMouseEnter={e => { if (!isActive && !isLoading) e.currentTarget.style.borderColor = "#1A1A18"; }}
-      onMouseLeave={e => { if (!isActive && !isLoading) e.currentTarget.style.borderColor = "#EEEDE8"; }}>
-      {isLoading
-        ? <><SpinnerIcon /> Translating…</>
-        : <>{label}{hasTranslation && <span style={{ fontSize: 10, opacity: 0.6 }}>{isActive ? "▲" : "▼"}</span>}</>
-      }
-    </button>
-  );
+function Eyebrow({ children }) {
+  return <div style={{ fontSize:11, fontWeight:700, letterSpacing:"0.1em", color:"#9CA3AF", marginBottom:8, textTransform:"uppercase" }}>{children}</div>;
 }
 
-function SpinnerIcon() {
-  return <span style={{ display: "inline-block", width: 12, height: 12, border: "2px solid currentColor", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />;
+function Divider() {
+  return <div style={{ height:1, background:"#F3F4F6", margin:"28px 0" }} />;
 }
 
-function ErrorBanner({ msg }) {
-  return (
-    <div style={{ marginTop: 12, background: "#FEE2E2", border: "1px solid #FCA5A5", borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "#991B1B", fontWeight: 600 }}>
-      ⚠ Translation failed: {msg}
-    </div>
-  );
+function Spinner() {
+  return <span style={{ display:"inline-block", width:13, height:13, border:"2px solid currentColor", borderTopColor:"transparent", borderRadius:"50%", animation:"spin 0.7s linear infinite", flexShrink:0 }} />;
 }
 
-function TranslatedTextBlock({ target, label, fields }) {
-  // fields: array of { eyebrow, text }
-  const isHi = target === "hi";
-  const accent = isHi ? { bg: "#FFFBEB", border: "#FDE68A", color: "#92400E" } : { bg: "#F0F9FF", border: "#BAE6FD", color: "#0369A1" };
+// ── score ring ────────────────────────────────────────────────────────────────
+function ScoreRing({ score, color }) {
+  const val = useCountUp(score);
+  const r = 40, circ = 2 * Math.PI * r;
+  const dash = circ - (circ * score) / 100;
   return (
-    <div style={{ marginTop: 20, background: accent.bg, border: `1px solid ${accent.border}`, borderRadius: 16, padding: 24, animation: "fadeSlideIn 0.35s ease" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: accent.color }}>{label.toUpperCase()} TRANSLATION</span>
-        <div style={{ height: 1, flex: 1, background: accent.border }} />
+    <div style={{ position:"relative", width:100, height:100, flexShrink:0 }}>
+      <svg width="100" height="100" viewBox="0 0 100 100" style={{ transform:"rotate(-90deg)" }}>
+        <circle cx="50" cy="50" r={r} fill="none" stroke="#F3F4F6" strokeWidth="8" />
+        <circle cx="50" cy="50" r={r} fill="none" stroke={color} strokeWidth="8"
+          strokeLinecap="round" strokeDasharray={circ}
+          strokeDashoffset={dash}
+          style={{ transition:"stroke-dashoffset 1.2s cubic-bezier(0.16,1,0.3,1) 0.4s" }} />
+      </svg>
+      <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
+        <span style={{ fontSize:22, fontWeight:800, color:"#111827", lineHeight:1 }}>{val}</span>
+        <span style={{ fontSize:11, color:"#9CA3AF", fontWeight:600 }}>/ 100</span>
       </div>
-      {fields.map(({ eyebrow, text }, i) => text ? (
-        <div key={i} style={{ marginBottom: i < fields.length - 1 ? 20 : 0 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#AEADA6", letterSpacing: "0.08em", marginBottom: 8 }}>{eyebrow}</div>
-          <div style={{ background: "#fff", border: `1px solid ${accent.border}`, borderRadius: 12, padding: "16px 18px", lineHeight: 1.85, fontSize: 14, color: "#444" }}>{text}</div>
-        </div>
-      ) : null)}
     </div>
   );
 }
 
-// ── Generic translation hook ──────────────────────────────────────────────────
+// ── translation hook ──────────────────────────────────────────────────────────
 function useTranslation() {
-  const [translations, setTranslations] = useState({});
-  const [loading, setLoading]           = useState({});
-  const [errors, setErrors]             = useState({});
-  const [active, setActive]             = useState(null);
+  const [cache, setCache]     = useState({});
+  const [loading, setLoading] = useState({});
+  const [errors, setErrors]   = useState({});
+  const [active, setActive]   = useState(null);
 
-  // BUG FIX #2: robust error handling — catches non-JSON 404 responses
   const translate = async (target, payload) => {
-    if (translations[target]) { setActive(p => p === target ? null : target); return; }
+    if (cache[target]) { setActive(p => p === target ? null : target); return; }
     setLoading(p => ({ ...p, [target]: true }));
     setErrors(p => ({ ...p, [target]: null }));
     setActive(target);
     try {
       const resp = await fetch(`${API_BASE}/translate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      // BUG FIX: try parsing JSON even on error; fall back to status text
       let data;
-      try { data = await resp.json(); } catch { throw new Error(`Server error ${resp.status}: ${resp.statusText}`); }
+      try { data = await resp.json(); } catch { throw new Error(`Server error ${resp.status}`); }
       if (!resp.ok) throw new Error(data.detail || `Error ${resp.status}`);
-      setTranslations(p => ({ ...p, [target]: data }));
+      setCache(p => ({ ...p, [target]: data }));
     } catch (err) {
       setErrors(p => ({ ...p, [target]: err.message }));
       setActive(null);
@@ -176,156 +133,147 @@ function useTranslation() {
     }
   };
 
-  return { translations, loading, errors, active, translate };
+  return { cache, loading, errors, active, translate };
 }
 
-// ── Translation button row ────────────────────────────────────────────────────
-function TranslationButtons({ detectedLang, onTranslate, loading, errors, active, translations }) {
+// ── translation bar ───────────────────────────────────────────────────────────
+function TranslateBar({ detectedLang, onTranslate, loading, errors, active }) {
   if (!detectedLang || detectedLang === "unknown") return null;
   const showEn = detectedLang !== "en";
   const showHi = detectedLang !== "hi";
   if (!showEn && !showHi) return null;
+
+  const btn = (target, label) => {
+    const isActive  = active === target;
+    const isLoading = loading[target];
+    return (
+      <button key={target} onClick={() => onTranslate(target)} disabled={isLoading}
+        style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"8px 16px", borderRadius:10,
+          fontSize:13, fontWeight:600, cursor:isLoading?"wait":"pointer", transition:"all 0.18s ease",
+          background: isActive ? "#111827" : "#F9FAFB",
+          color: isActive ? "#F9FAFB" : "#374151",
+          border: `1.5px solid ${isActive ? "#111827" : "#E5E7EB"}`,
+          opacity: isLoading ? 0.75 : 1 }}>
+        {isLoading ? <><Spinner />{" "}Translating…</> : label}
+        {!isLoading && <span style={{ opacity:0.4, fontSize:10 }}>{isActive ? "▲" : "▼"}</span>}
+      </button>
+    );
+  };
+
   return (
-    <div style={{ marginTop: 28 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-        <div style={{ height: 1, flex: 1, background: "#EEEDE8" }} />
-        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: "#AEADA6" }}>TRANSLATE ANALYSIS</span>
-        <div style={{ height: 1, flex: 1, background: "#EEEDE8" }} />
+    <div style={{ marginTop:24 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:14 }}>
+        <div style={{ flex:1, height:1, background:"#F3F4F6" }} />
+        <Eyebrow>Translate analysis</Eyebrow>
+        <div style={{ flex:1, height:1, background:"#F3F4F6" }} />
       </div>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        {showEn && <TranslateButton label="🇬🇧 Translate to English" target="en" isActive={active === "en"} isLoading={loading["en"]} hasTranslation={!!translations["en"]} onClick={() => onTranslate("en")} />}
-        {showHi && <TranslateButton label="🇮🇳 हिंदी में अनुवाद करें" target="hi" isActive={active === "hi"} isLoading={loading["hi"]} hasTranslation={!!translations["hi"]} onClick={() => onTranslate("hi")} />}
+      <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+        {showEn && btn("en", "🇬🇧 English")}
+        {showHi && btn("hi", "🇮🇳 हिंदी")}
       </div>
-      {errors["en"] && <ErrorBanner msg={errors["en"]} />}
-      {errors["hi"] && <ErrorBanner msg={errors["hi"]} />}
+      {errors["en"] && <div style={{ marginTop:10, fontSize:13, color:"#DC2626", background:"#FFF1F2", border:"1px solid #FECDD3", borderRadius:8, padding:"8px 12px" }}>⚠ {errors["en"]}</div>}
+      {errors["hi"] && <div style={{ marginTop:10, fontSize:13, color:"#DC2626", background:"#FFF1F2", border:"1px solid #FECDD3", borderRadius:8, padding:"8px 12px" }}>⚠ {errors["hi"]}</div>}
     </div>
   );
 }
 
-// ── Translation Panel (summary + reasoning) ───────────────────────────────────
-function AnalysisTranslationPanel({ detectedLang, originalSummary, originalReasoning }) {
-  const { translations, loading, errors, active, translate } = useTranslation();
-  const LABELS = { en: "English", hi: "हिंदी" };
-
-  const handleTranslate = (target) => translate(target, {
-    summary:         originalSummary   || "",
-    reasoning:       originalReasoning || "",
-    target,
-    source_language: detectedLang,
-  });
+// ── translated block ──────────────────────────────────────────────────────────
+function TranslatedBlock({ target, data, fields }) {
+  const isHi = target === "hi";
+  const accent = isHi
+    ? { bg:"#FFFBEB", border:"#FDE68A", tag:"#92400E", tagBg:"#FEF3C7" }
+    : { bg:"#EFF6FF", border:"#BFDBFE", tag:"#1E40AF", tagBg:"#DBEAFE" };
 
   return (
+    <div style={{ marginTop:16, borderRadius:16, border:`1px solid ${accent.border}`, background:accent.bg, padding:20, animation:"fadeUp 0.3s ease" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16 }}>
+        <span style={{ fontSize:11, fontWeight:700, letterSpacing:"0.08em", color:accent.tag, background:accent.tagBg, borderRadius:6, padding:"3px 8px" }}>
+          {isHi ? "हिंदी" : "ENGLISH"} TRANSLATION
+        </span>
+        <div style={{ flex:1, height:1, background:accent.border }} />
+      </div>
+      {fields.map(({ label, text }, i) => text ? (
+        <div key={i} style={{ marginBottom: i < fields.length - 1 ? 16 : 0 }}>
+          <Eyebrow>{label}</Eyebrow>
+          <div style={{ background:"#fff", border:`1px solid ${accent.border}`, borderRadius:10, padding:"14px 16px", lineHeight:1.85, fontSize:14, color:"#374151" }}>{text}</div>
+        </div>
+      ) : null)}
+    </div>
+  );
+}
+
+// ── analysis translation panel ────────────────────────────────────────────────
+function AnalysisPanel({ detectedLang, summary, reasoning }) {
+  const { cache, loading, errors, active, translate } = useTranslation();
+  const handle = (target) => translate(target, { summary: summary||"", reasoning: reasoning||"", target, source_language: detectedLang });
+  return (
     <>
-      <TranslationButtons
-        detectedLang={detectedLang}
-        onTranslate={handleTranslate}
-        loading={loading} errors={errors} active={active} translations={translations}
-      />
-      {active && translations[active] && (
-        <TranslatedTextBlock
-          target={active}
-          label={LABELS[active]}
+      <TranslateBar detectedLang={detectedLang} onTranslate={handle} loading={loading} errors={errors} active={active} />
+      {active && cache[active] && (
+        <TranslatedBlock target={active} data={cache[active]}
           fields={[
-            { eyebrow: "NEUTRAL SUMMARY",  text: translations[active].summary   },
-            { eyebrow: "AI REASONING",     text: translations[active].reasoning },
-          ]}
-        />
+            { label:"Neutral summary",  text: cache[active].summary   },
+            { label:"AI reasoning",     text: cache[active].reasoning },
+          ]} />
       )}
     </>
   );
 }
 
-// ── Detail Section (new — bug fix #4) ────────────────────────────────────────
-// Expandable section below summary with a full neutral background explanation.
-// Has its own separate translation buttons.
+// ── expandable detail section ─────────────────────────────────────────────────
 function DetailSection({ claim, contextText, detectedLang }) {
-  const [open, setOpen]             = useState(false);
-  const [explanation, setExplan]    = useState(null);
-  const [loadingExplan, setLoadEx]  = useState(false);
-  const [explainErr, setExplainErr] = useState(null);
+  const [open, setOpen]   = useState(false);
+  const [text, setText]   = useState(null);
+  const [loading, setLd]  = useState(false);
+  const [error, setErr]   = useState(null);
+  const { cache, loading:tl, errors:te, active, translate } = useTranslation();
 
-  // Translation state for the detail section
-  const { translations, loading, errors, active, translate } = useTranslation();
-  const LABELS = { en: "English", hi: "हिंदी" };
-
-  const fetchExplanation = async () => {
-    if (explanation) { setOpen(o => !o); return; }
-    setOpen(true);
-    setLoadEx(true);
-    setExplainErr(null);
+  const fetch_ = async () => {
+    if (text) { setOpen(o => !o); return; }
+    setOpen(true); setLd(true); setErr(null);
     try {
       const resp = await fetch(`${API_BASE}/explain`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          claim:        claim        || "",
-          context_text: contextText  || "",
-          language:     detectedLang || "en",
-        }),
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ claim: claim||"", context_text: contextText||"", language: detectedLang||"en" }),
       });
       let data;
       try { data = await resp.json(); } catch { throw new Error(`Server error ${resp.status}`); }
       if (!resp.ok) throw new Error(data.detail || `Error ${resp.status}`);
-      setExplan(data.explanation);
-    } catch (err) {
-      setExplainErr(err.message);
-      setOpen(false);
-    } finally {
-      setLoadEx(false);
-    }
+      setText(data.explanation);
+    } catch (e) { setErr(e.message); setOpen(false); }
+    finally { setLd(false); }
   };
 
-  const handleTranslate = (target) => translate(target, {
-    summary:         explanation || "",
-    reasoning:       "",
-    target,
-    source_language: detectedLang || "en",
-  });
+  const handle = (target) => translate(target, { summary: text||"", reasoning:"", target, source_language: detectedLang||"en" });
 
   return (
-    <div style={{ marginTop: 24 }}>
-      {/* Trigger button */}
-      <button
-        onClick={fetchExplanation}
-        style={{ display: "inline-flex", alignItems: "center", gap: 8, background: open ? "#1A1A18" : "#F7F6F2", color: open ? "#FAFAF8" : "#1A1A18", border: `1.5px solid ${open ? "#1A1A18" : "#EEEDE8"}`, borderRadius: 10, padding: "9px 18px", fontSize: 13, fontWeight: 700, cursor: loadingExplan ? "wait" : "pointer", transition: "all 0.2s ease", opacity: loadingExplan ? 0.7 : 1 }}
-        onMouseEnter={e => { if (!open && !loadingExplan) e.currentTarget.style.borderColor = "#1A1A18"; }}
-        onMouseLeave={e => { if (!open && !loadingExplan) e.currentTarget.style.borderColor = "#EEEDE8"; }}>
-        {loadingExplan
-          ? <><SpinnerIcon /> Loading details…</>
-          : <>{open ? "▲ Hide Details" : "▼ Detailed Explanation"}</>
-        }
+    <div style={{ marginTop:16 }}>
+      <button onClick={fetch_}
+        style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"9px 18px", borderRadius:10,
+          fontSize:13, fontWeight:600, cursor: loading?"wait":"pointer", transition:"all 0.18s ease",
+          background: open ? "#111827" : "#F9FAFB",
+          color:      open ? "#F9FAFB" : "#374151",
+          border:    `1.5px solid ${open ? "#111827" : "#E5E7EB"}`,
+          opacity: loading ? 0.75 : 1 }}>
+        {loading ? <><Spinner /> Loading background…</> : open ? "▲ Hide details" : "▼ Full background"}
       </button>
 
-      {explainErr && <ErrorBanner msg={explainErr} />}
+      {error && <div style={{ marginTop:10, fontSize:13, color:"#DC2626", background:"#FFF1F2", border:"1px solid #FECDD3", borderRadius:8, padding:"8px 12px" }}>⚠ {error}</div>}
 
-      {/* Expanded content */}
-      <div style={{ display: "grid", gridTemplateRows: open && explanation ? "1fr" : "0fr", transition: "grid-template-rows 0.45s cubic-bezier(0.16,1,0.3,1)" }}>
-        <div style={{ overflow: "hidden" }}>
-          {explanation && (
-            <div style={{ marginTop: 20, background: "#F7F6F2", border: "1px solid #EEEDE8", borderRadius: 16, padding: "20px 22px" }}>
-              {/* Header */}
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#1A1A18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <span style={{ color: "#FAFAF8", fontSize: 14 }}>ℹ</span>
-                </div>
-                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: "#888780" }}>BACKGROUND & CONTEXT</div>
+      <div style={{ display:"grid", gridTemplateRows: open && text ? "1fr" : "0fr", transition:"grid-template-rows 0.4s cubic-bezier(0.16,1,0.3,1)" }}>
+        <div style={{ overflow:"hidden" }}>
+          {text && (
+            <div style={{ marginTop:16, background:"#F9FAFB", border:"1px solid #E5E7EB", borderRadius:14, padding:"20px 22px" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
+                <span style={{ width:28, height:28, borderRadius:"50%", background:"#111827", color:"#F9FAFB", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, flexShrink:0 }}>ℹ</span>
+                <Eyebrow>Background & context</Eyebrow>
               </div>
+              <p style={{ lineHeight:1.9, fontSize:14, color:"#374151" }}>{text}</p>
 
-              {/* Explanation text */}
-              <p style={{ lineHeight: 1.9, fontSize: 15, color: "#444" }}>{explanation}</p>
-
-              {/* Translation for detail section */}
-              <TranslationButtons
-                detectedLang={detectedLang}
-                onTranslate={handleTranslate}
-                loading={loading} errors={errors} active={active} translations={translations}
-              />
-              {active && translations[active] && (
-                <TranslatedTextBlock
-                  target={active}
-                  label={LABELS[active]}
-                  fields={[{ eyebrow: "BACKGROUND & CONTEXT", text: translations[active].summary }]}
-                />
+              <TranslateBar detectedLang={detectedLang} onTranslate={handle} loading={tl} errors={te} active={active} />
+              {active && cache[active] && (
+                <TranslatedBlock target={active} data={cache[active]}
+                  fields={[{ label:"Background & context", text: cache[active].summary }]} />
               )}
             </div>
           )}
@@ -335,100 +283,155 @@ function DetailSection({ claim, contextText, detectedLang }) {
   );
 }
 
-// ── Main Result Page ──────────────────────────────────────────────────────────
-export default function ResultPage() {
-  const location = useLocation();
-  const navigate  = useNavigate();
-  const [visible, setVisible] = useState(false);
+// ── article card ──────────────────────────────────────────────────────────────
+function ArticleCard({ article, index }) {
+  const [ref, inView] = useInView(0.06);
+  const [expanded, setExpanded] = useState(false);
+  const [showFull, setShowFull] = useState(false);
+  const cfg = getVerdictConfig("unclear");
 
-  useEffect(() => { const t = setTimeout(() => setVisible(true), 60); return () => clearTimeout(t); }, []);
+  return (
+    <div ref={ref} style={{ opacity:inView?1:0, transform:inView?"translateY(0)":"translateY(24px)", transition:`opacity 0.55s ease ${index*80}ms, transform 0.55s ease ${index*80}ms` }}>
+      <div style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:20, padding:"24px 26px", marginBottom:16,
+        transition:"box-shadow 0.25s ease, transform 0.25s ease" }}
+        onMouseEnter={e => { e.currentTarget.style.boxShadow="0 8px 32px rgba(0,0,0,0.06)"; e.currentTarget.style.transform="translateY(-1px)"; }}
+        onMouseLeave={e => { e.currentTarget.style.boxShadow="none"; e.currentTarget.style.transform="translateY(0)"; }}>
+
+        {/* Header row */}
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12, marginBottom:14 }}>
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            <span style={{ fontSize:11, fontWeight:700, letterSpacing:"0.08em", color:"#6B7280" }}>{article.source}</span>
+            <Pill color="#065F46" bg="#ECFDF5" border="#6EE7B7">
+              <span style={{ width:6, height:6, borderRadius:"50%", background:"#10B981", display:"inline-block", flexShrink:0 }} />
+              Trusted · {article.score} pts
+            </Pill>
+          </div>
+          <a href={article.url} target="_blank" rel="noreferrer"
+            style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"8px 14px", borderRadius:10,
+              fontSize:12, fontWeight:700, color:"#111827", textDecoration:"none",
+              background:"#F9FAFB", border:"1.5px solid #E5E7EB", flexShrink:0, transition:"all 0.18s ease" }}
+            onMouseEnter={e => { e.currentTarget.style.background="#111827"; e.currentTarget.style.color="#F9FAFB"; }}
+            onMouseLeave={e => { e.currentTarget.style.background="#F9FAFB"; e.currentTarget.style.color="#111827"; }}>
+            Open ↗
+          </a>
+        </div>
+
+        {/* Title + snippet */}
+        <h3 style={{ fontSize:17, fontWeight:700, lineHeight:1.4, color:"#111827", marginBottom:10 }}>{article.title}</h3>
+        <p style={{ fontSize:14, color:"#6B7280", lineHeight:1.75, marginBottom:16 }}>{article.snippet}</p>
+
+        {/* Expand toggle */}
+        <button onClick={() => setExpanded(!expanded)}
+          style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"8px 16px", borderRadius:10,
+            fontSize:13, fontWeight:600, cursor:"pointer", transition:"all 0.18s ease", outline:"none",
+            background: expanded ? "#111827" : "transparent",
+            color:      expanded ? "#F9FAFB" : "#111827",
+            border:    `1.5px solid ${expanded ? "#111827" : "#E5E7EB"}` }}>
+          {expanded ? "Hide article ▲" : "Read article ▼"}
+        </button>
+
+        {/* Expanded text */}
+        <div style={{ display:"grid", gridTemplateRows: expanded ? "1fr" : "0fr", transition:"grid-template-rows 0.4s cubic-bezier(0.16,1,0.3,1)" }}>
+          <div style={{ overflow:"hidden" }}>
+            <div style={{ marginTop:20, background:"#F9FAFB", border:"1px solid #E5E7EB", borderRadius:12, padding:18, lineHeight:1.85, fontSize:14, color:"#374151", whiteSpace:"pre-wrap", maxHeight:340, overflowY:"auto" }}>
+              {showFull ? article.full_text : `${article.full_text?.slice(0, 700)}…`}
+            </div>
+            <button onClick={() => setShowFull(!showFull)}
+              style={{ marginTop:10, border:"none", background:"transparent", cursor:"pointer", fontWeight:700, fontSize:13, color:"#9CA3AF" }}>
+              {showFull ? "Show less ▲" : "Show more ▼"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── fade section wrapper ──────────────────────────────────────────────────────
+function Fade({ children, delay = 0 }) {
+  const [ref, inView] = useInView(0.08);
+  return (
+    <div ref={ref} style={{ opacity:inView?1:0, transform:inView?"translateY(0)":"translateY(20px)", transition:`opacity 0.55s ease ${delay}ms, transform 0.55s ease ${delay}ms` }}>
+      {children}
+    </div>
+  );
+}
+
+// ── card wrapper ──────────────────────────────────────────────────────────────
+function Card({ children, style = {} }) {
+  return (
+    <div style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:20, padding:"28px 30px", marginBottom:20, ...style }}>
+      {children}
+    </div>
+  );
+}
+
+// ── pdf download ──────────────────────────────────────────────────────────────
+function downloadPDF(verdict, recency, confidence, analysis, searchResults) {
+  import("jspdf").then(({ default: jsPDF }) => {
+    const doc = new jsPDF({ unit:"pt", format:"a4" });
+    const pw = doc.internal.pageSize.getWidth();
+    const m = 48; const mw = pw - m * 2;
+    let y = 60;
+    const line = (text, fs, bold, color=[40,40,40]) => {
+      doc.setFontSize(fs); doc.setFont("helvetica", bold?"bold":"normal"); doc.setTextColor(...color);
+      const lines = doc.splitTextToSize(String(text||""), mw);
+      doc.text(lines, m, y); y += lines.length * (fs * 1.45) + 4;
+    };
+    const hr = () => { y += 10; doc.setDrawColor(230,230,228); doc.line(m,y,pw-m,y); y += 16; };
+
+    doc.setFillColor(17,24,39); doc.roundedRect(m-16,y-20,mw+32,64,8,8,"F");
+    doc.setTextColor(249,250,251); doc.setFontSize(20); doc.setFont("helvetica","bold");
+    doc.text("SUSCAN — Fact Check Report", m, y+10);
+    doc.setFontSize(10); doc.setFont("helvetica","normal"); doc.setTextColor(156,163,175);
+    doc.text(`Generated ${new Date().toLocaleString()}`, m, y+28); y += 76;
+
+    line("VERDICT", 9, true, [156,163,175]); line(verdict.toUpperCase(), 18, true); hr();
+    line("EVENT RECENCY", 9, true, [156,163,175]); line(`${recency.label} — ${recency.sub}`, 13, false); hr();
+    line("TRUTH SCORE", 9, true, [156,163,175]); line(`${confidence}/100`, 13, false); hr();
+    line("SUMMARY", 9, true, [156,163,175]); line(analysis.summary||"—", 11, false, [80,80,78]); hr();
+    line("AI REASONING", 9, true, [156,163,175]); line(analysis.reasoning||"—", 11, false, [80,80,78]); hr();
+    line("SOURCES", 9, true, [156,163,175]);
+    searchResults.forEach((s, i) => {
+      line(`${i+1}. ${s.source} — ${s.title}`, 11, false, [60,60,58]);
+      if (s.url) { doc.setTextColor(59,130,246); doc.setFontSize(10); doc.setFont("helvetica","normal"); const ul=doc.splitTextToSize(s.url,mw-20); doc.text(ul,m+16,y); y+=ul.length*13+4; }
+      y += 3;
+    });
+    doc.save("suscan-report.pdf");
+  });
+}
+
+// ── MAIN PAGE ─────────────────────────────────────────────────────────────────
+export default function ResultPage() {
+  const location  = useLocation();
+  const navigate  = useNavigate();
+  const [ready, setReady] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setReady(true), 60); return () => clearTimeout(t); }, []);
 
   const result        = location.state?.result;
   const data          = result?.data;
   const searchResults = data?.search_results || [];
   const analysis      = data?.analysis       || {};
+  const verdict       = analysis.final_verdict    || "unclear";
+  const confidence    = analysis.truth_score      || 0;
+  const detectedLang  = analysis.detected_language || null;
+  const vc = getVerdictConfig(verdict);
+  const rc = getRecencyConfig(analysis.event_recency);
 
-  const verdict      = analysis.final_verdict    || "unclear";
-  const confidence   = analysis.truth_score      || 0;
-  const detectedLang = analysis.detected_language || null;
-
-  // Build context text from search results for the explain endpoint
   const contextText = searchResults.slice(0, 3).map(r =>
     `SOURCE: ${r.source}\nTITLE: ${r.title}\nSNIPPET: ${r.snippet}`
   ).join("\n\n---\n\n");
 
-  // ── BUG FIX #1: added "true" and "false" as explicit verdicts ──────────────
-  // Previously "true" fell to the default grey ? case.
-  // Now "true" and "verified" both map to green, "false" maps to red.
-  const getBadgeConfig = (v) => {
-    if (v === "true" || v === "verified")
-      return { bg: "#D1FAE5", color: "#065F46", border: "#6EE7B7", icon: "✓", glow: "rgba(16,185,129,0.15)" };
-    if (v === "false")
-      return { bg: "#FEE2E2", color: "#991B1B", border: "#FCA5A5", icon: "✗", glow: "rgba(239,68,68,0.12)" };
-    if (v === "misleading")
-      return { bg: "#FEE2E2", color: "#991B1B", border: "#FCA5A5", icon: "✗", glow: "rgba(239,68,68,0.12)" };
-    if (v === "partially misleading")
-      return { bg: "#FEF3C7", color: "#92400E", border: "#FDE68A", icon: "⚠", glow: "rgba(245,158,11,0.12)" };
-    return { bg: "#E5E7EB", color: "#374151", border: "#D1D5DB", icon: "?", glow: "rgba(107,114,128,0.1)" };
-  };
-
-  const badge = getBadgeConfig(verdict);
-
-  const getRecencyTag = (r) => {
-    switch (r) {
-      case "recent":        return { label: "Recent",        dot: "#10B981", bg: "#D1FAE5", color: "#065F46", desc: "Within the last 7 days" };
-      case "not_recent":    return { label: "Not So Recent", dot: "#F59E0B", bg: "#FEF3C7", color: "#92400E", desc: "7–30 days ago" };
-      case "long_time_ago": return { label: "Outdated",      dot: "#EF4444", bg: "#FEE2E2", color: "#991B1B", desc: "More than 1 month ago" };
-      case "ongoing":       return { label: "Ongoing",       dot: "#3B82F6", bg: "#DBEAFE", color: "#1E40AF", desc: "Still developing" };
-      default:              return { label: "Unknown",       dot: "#9CA3AF", bg: "#E5E7EB", color: "#374151", desc: "Recency unclear" };
-    }
-  };
-  const recency = getRecencyTag(analysis.event_recency);
-
-  const handleDownloadPDF = () => {
-    import("jspdf").then(({ default: jsPDF }) => {
-      const doc = new jsPDF({ unit: "pt", format: "a4" });
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const margin = 48; const maxWidth = pageWidth - margin * 2;
-      let y = 60;
-      const addText = (text, fontSize, isBold, color = [30, 30, 28]) => {
-        doc.setFontSize(fontSize); doc.setFont("helvetica", isBold ? "bold" : "normal");
-        doc.setTextColor(...color);
-        const lines = doc.splitTextToSize(String(text || ""), maxWidth);
-        doc.text(lines, margin, y); y += lines.length * (fontSize * 1.4) + 6;
-      };
-      const addDivider = () => { y += 8; doc.setDrawColor(220,220,215); doc.line(margin,y,pageWidth-margin,y); y += 16; };
-      doc.setFillColor(26,26,24); doc.roundedRect(margin-16,y-20,maxWidth+32,70,10,10,"F");
-      doc.setTextColor(250,250,248); doc.setFontSize(22); doc.setFont("helvetica","bold");
-      doc.text("SUSCAN — Fact Check Report", margin, y+10);
-      doc.setFontSize(10); doc.setFont("helvetica","normal"); doc.setTextColor(180,180,170);
-      doc.text(`Generated on ${new Date().toLocaleString()}`, margin, y+30); y += 80;
-      addText("FINAL VERDICT", 9, true, [150,148,140]); addText(verdict.toUpperCase(), 20, true); addDivider();
-      addText("EVENT RECENCY", 9, true, [150,148,140]); addText(`${recency.label} — ${recency.desc}`, 14, false); addDivider();
-      addText("TRUTH SCORE", 9, true, [150,148,140]); addText(`${confidence}%`, 14, false); addDivider();
-      addText("NEUTRAL SUMMARY", 9, true, [150,148,140]); addText(analysis.summary || "—", 11, false, [80,80,75]); addDivider();
-      addText("AI REASONING", 9, true, [150,148,140]); addText(analysis.reasoning || "—", 11, false, [80,80,75]); addDivider();
-      addText("SOURCES USED", 9, true, [150,148,140]);
-      searchResults.forEach((src, i) => {
-        addText(`${i+1}. ${src.source||"?"} — ${src.title||""}`, 11, false, [60,60,55]);
-        if (src.url) { doc.setTextColor(59,130,246); doc.setFontSize(10); doc.setFont("helvetica","normal"); const ul = doc.splitTextToSize(src.url, maxWidth-20); doc.text(ul, margin+16, y); y += ul.length*14+4; }
-        y += 4;
-      });
-      doc.save("suscan-fact-check.pdf");
-    });
-  };
-
-  // ── Empty state ───────────────────────────────────────────────────────────
   if (!result || !data) {
     return (
-      <div style={{ minHeight: "100vh", background: "#FAFAF8", fontFamily: "'DM Sans', sans-serif" }}>
+      <div style={{ minHeight:"100vh", background:"#F9FAFB", fontFamily:"system-ui, sans-serif" }}>
         <Navbar />
-        <div style={{ padding: "120px 24px", textAlign: "center" }}>
-          <div style={{ fontSize: 64, marginBottom: 24 }}>🔍</div>
-          <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 36, marginBottom: 16, color: "#1A1A18" }}>No analysis found</h2>
-          <p style={{ color: "#888780", marginBottom: 32, fontSize: 16 }}>Something went wrong. Head back and try again.</p>
-          <button onClick={() => navigate("/")} style={{ background: "#1A1A18", color: "#fff", border: "none", borderRadius: 14, padding: "14px 28px", cursor: "pointer", fontWeight: 700, fontSize: 15, fontFamily: "'DM Sans', sans-serif" }}>
-            ← Return Home
+        <div style={{ padding:"120px 24px", textAlign:"center" }}>
+          <div style={{ fontSize:56, marginBottom:20 }}>🔍</div>
+          <h2 style={{ fontSize:30, fontWeight:800, marginBottom:12, color:"#111827" }}>No result found</h2>
+          <p style={{ color:"#6B7280", marginBottom:28, fontSize:15 }}>Something went wrong. Head back and try again.</p>
+          <button onClick={() => navigate("/")} style={{ background:"#111827", color:"#F9FAFB", border:"none", borderRadius:12, padding:"13px 28px", cursor:"pointer", fontWeight:700, fontSize:14 }}>
+            ← Go home
           </button>
         </div>
       </div>
@@ -436,181 +439,176 @@ export default function ResultPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#FAFAF8", fontFamily: "'DM Sans', sans-serif", color: "#1A1A18", overflowX: "hidden" }}>
+    <div style={{ minHeight:"100vh", background:"#F9FAFB", fontFamily:"'Inter', system-ui, sans-serif", color:"#111827", overflowX:"hidden" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=DM+Serif+Display:ital@0;1&display=swap');
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        .word-reveal { overflow: hidden; display: inline-block; }
-        .word-inner { display: inline-block; transform: translateY(110%); transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1); }
-        .word-inner.in { transform: translateY(0); }
-        .article-card { background: #fff; border: 1px solid #E2E0D8; border-radius: 22px; padding: 30px; margin-bottom: 20px; transition: box-shadow 0.3s ease, transform 0.3s ease; }
-        .article-card:hover { box-shadow: 0 12px 40px rgba(0,0,0,0.07); transform: translateY(-2px); }
-        .glass-card { background: #fff; border: 1px solid #E2E0D8; border-radius: 24px; padding: 32px; margin-bottom: 24px; position: relative; overflow: hidden; }
-        @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(1.35)} }
-        .pulse { animation: pulse 2s ease-in-out infinite; }
-        @keyframes sweep { from { stroke-dashoffset: 283; } }
-        .score-ring { animation: sweep 1.2s cubic-bezier(0.16,1,0.3,1) 0.5s both; }
-        @keyframes float { 0%,100%{transform:translateY(0) rotate(0deg)} 50%{transform:translateY(-10px) rotate(4deg)} }
-        .float { animation: float 6s ease-in-out infinite; }
-        .float2 { animation: float 8s ease-in-out infinite 1.5s; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-        .section-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: #AEADA6; margin-bottom: 8px; }
-        .divider { width: 40px; height: 3px; background: #1A1A18; border-radius: 99px; margin-bottom: 16px; }
-        .back-btn { display: inline-flex; align-items: center; gap: 8px; background: #fff; border: 1px solid #E2E0D8; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; color: #666; cursor: pointer; transition: all 0.2s ease; margin-bottom: 32px; }
-        .back-btn:hover { background: #F7F6F2; border-color: #1A1A18; color: #1A1A18; }
-        .expand-btn:focus { outline: none; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.4)} }
+        button:focus { outline:2px solid #6366F1; outline-offset:2px; }
+        ::-webkit-scrollbar { width:5px; } ::-webkit-scrollbar-track { background:transparent; }
+        ::-webkit-scrollbar-thumb { background:#E5E7EB; border-radius:99px; }
       `}</style>
 
       <Navbar />
-      <main style={{ maxWidth: 920, margin: "0 auto", padding: "48px 24px 120px" }}>
 
-        {/* ── HEADER ── */}
-        <div style={{ opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(20px)", transition: "opacity 0.6s ease, transform 0.6s ease" }}>
-          <div style={{ display: "flex", gap: 12, marginBottom: 32, alignItems: "center" }}>
-            <button className="back-btn" onClick={() => navigate("/")} style={{ marginBottom: 0 }}>← Back</button>
-            <button onClick={handleDownloadPDF}
-              style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#fff", border: "1.5px solid #1A1A18", borderRadius: 10, padding: "9px 18px", fontSize: 13, fontWeight: 700, color: "#1A1A18", cursor: "pointer", transition: "all 0.2s ease" }}
-              onMouseEnter={e => { e.currentTarget.style.background = "#1A1A18"; e.currentTarget.style.color = "#FAFAF8"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.color = "#1A1A18"; }}>
-              ↓ Download Report
-            </button>
-          </div>
-          <div style={{ position: "relative", marginBottom: 48 }}>
-            <div className="float" style={{ position: "absolute", top: -20, right: "5%", width: 72, height: 72, borderRadius: "50%", background: `linear-gradient(135deg, ${badge.bg}, ${badge.border})`, opacity: 0.55, filter: "blur(2px)", pointerEvents: "none" }} />
-            <div className="float2" style={{ position: "absolute", top: 10, right: "18%", width: 40, height: 40, borderRadius: "50%", background: "linear-gradient(135deg, #FEF3C7, #FDE68A)", opacity: 0.5, filter: "blur(1px)", pointerEvents: "none" }} />
-            <div className="section-eyebrow">FACT CHECK REPORT</div>
-            <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "clamp(36px, 6vw, 58px)", lineHeight: 1.1, letterSpacing: "-1.5px", color: "#1A1A18", marginBottom: 14 }}>
-              {["Analysis", "Result"].map((word, i) => (
-                <span key={i} className="word-reveal" style={{ marginRight: "0.25em" }}>
-                  <span className={`word-inner ${visible ? "in" : ""}`} style={{ transitionDelay: `${100 + i * 100}ms`, fontStyle: i === 1 ? "italic" : "normal" }}>{word}</span>
-                </span>
-              ))}
-            </h1>
-            <p style={{ fontSize: 16, color: "#888780", lineHeight: 1.7, opacity: visible ? 1 : 0, transition: "opacity 0.6s ease 400ms" }}>
-              AI verification breakdown using trusted sources.
-            </p>
+      <main style={{ maxWidth:860, margin:"0 auto", padding:"40px 20px 100px" }}>
+
+        {/* ── top bar ── */}
+        <div style={{ opacity:ready?1:0, transform:ready?"translateY(0)":"translateY(12px)", transition:"all 0.5s ease", display:"flex", gap:10, marginBottom:36, alignItems:"center", flexWrap:"wrap" }}>
+          <button onClick={() => navigate("/")}
+            style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"9px 16px", borderRadius:10, fontSize:13, fontWeight:600, color:"#374151", background:"#fff", border:"1.5px solid #E5E7EB", cursor:"pointer", transition:"all 0.18s ease" }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor="#111827"; e.currentTarget.style.color="#111827"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor="#E5E7EB"; e.currentTarget.style.color="#374151"; }}>
+            ← Back
+          </button>
+          <button onClick={() => downloadPDF(verdict, rc, confidence, analysis, searchResults)}
+            style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"9px 16px", borderRadius:10, fontSize:13, fontWeight:600, color:"#111827", background:"#fff", border:"1.5px solid #E5E7EB", cursor:"pointer", transition:"all 0.18s ease" }}
+            onMouseEnter={e => { e.currentTarget.style.background="#111827"; e.currentTarget.style.color="#F9FAFB"; e.currentTarget.style.borderColor="#111827"; }}
+            onMouseLeave={e => { e.currentTarget.style.background="#fff"; e.currentTarget.style.color="#111827"; e.currentTarget.style.borderColor="#E5E7EB"; }}>
+            ↓ Download report
+          </button>
+          <div style={{ marginLeft:"auto" }}>
+            <Eyebrow>Fact check report</Eyebrow>
           </div>
         </div>
 
-        {/* ── VERDICT CARD ── */}
-        <FadeSection delay={80}>
-          <div className="glass-card" style={{ marginBottom: 28 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
+        {/* ── VERDICT HERO ── */}
+        <Fade delay={60}>
+          <div style={{ background:vc.bg, border:`1.5px solid ${vc.border}`, borderRadius:24, padding:"32px 30px", marginBottom:20, position:"relative", overflow:"hidden" }}>
+            {/* background ring decoration */}
+            <div style={{ position:"absolute", right:-40, top:-40, width:180, height:180, borderRadius:"50%", border:`24px solid ${vc.border}`, opacity:0.3, pointerEvents:"none" }} />
 
-              {/* Final Verdict */}
+            <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:24 }}>
+              {/* verdict */}
               <div>
-                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: "#AEADA6", marginBottom: 14 }}>FINAL VERDICT</div>
-                <div style={{ display: "inline-flex", alignItems: "center", gap: 14, background: badge.bg, color: badge.color, border: `1.5px solid ${badge.border}`, padding: "16px 28px", borderRadius: 20, fontSize: 24, fontWeight: 800, letterSpacing: "-0.5px", boxShadow: `0 8px 24px ${badge.glow}, inset 0 2px 4px rgba(255,255,255,0.4)` }}>
-                  <span style={{ fontSize: 24 }}>{badge.icon}</span>
-                  {verdict.toUpperCase()}
+                <Eyebrow>Final verdict</Eyebrow>
+                <div style={{ display:"flex", alignItems:"center", gap:14, marginTop:6 }}>
+                  <span style={{ width:48, height:48, borderRadius:"50%", background:vc.color, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, fontWeight:800, flexShrink:0 }}>{vc.icon}</span>
+                  <span style={{ fontSize:36, fontWeight:800, color:vc.color, letterSpacing:"-1px" }}>{vc.label}</span>
                 </div>
               </div>
 
-              {/* Event Recency */}
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: "#AEADA6", marginBottom: 14, justifyContent: "center", display: "flex", alignItems: "center", gap: 6 }}>EVENT RECENCY</div>
-                <div style={{ display: "inline-flex", alignItems: "center", gap: 14, background: recency.bg, color: recency.color, border: `1.5px solid ${recency.dot}40`, borderRadius: 20, padding: "16px 28px", boxShadow: "0 8px 24px rgba(0,0,0,0.03), inset 0 2px 4px rgba(255,255,255,0.4)" }}>
-                  <span className="pulse" style={{ width: 10, height: 10, borderRadius: "50%", background: recency.dot, display: "inline-block", flexShrink: 0 }} />
-                  <div style={{ textAlign: "left" }}>
-                    <div style={{ fontSize: 17, fontWeight: 800, lineHeight: 1.2 }}>{recency.label}</div>
-                    <div style={{ fontSize: 12, opacity: 0.75, marginTop: 4 }}>{recency.desc}</div>
+              {/* recency */}
+              <div style={{ textAlign:"center" }}>
+                <Eyebrow>Event recency</Eyebrow>
+                <div style={{ display:"inline-flex", alignItems:"center", gap:10, marginTop:6, background:"#fff", border:`1.5px solid ${rc.dot}30`, borderRadius:14, padding:"12px 20px" }}>
+                  <span className="pulse" style={{ width:9, height:9, borderRadius:"50%", background:rc.dot, display:"inline-block", animation:"pulse 2s ease-in-out infinite", flexShrink:0 }} />
+                  <div style={{ textAlign:"left" }}>
+                    <div style={{ fontSize:16, fontWeight:700, color:rc.color, lineHeight:1.2 }}>{rc.label}</div>
+                    <div style={{ fontSize:12, color:"#9CA3AF", marginTop:3 }}>{rc.sub}</div>
                   </div>
                 </div>
               </div>
 
-              {/* Truth Score */}
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: "#AEADA6", marginBottom: 14, justifyContent: "flex-end", display: "flex", alignItems: "center", gap: 6 }}>TRUTH SCORE</div>
-                <div style={{ display: "inline-flex", alignItems: "center", gap: 20 }}>
-                  <div style={{ position: "relative", width: 76, height: 76 }}>
-                    <svg width="76" height="76" viewBox="0 0 100 100" style={{ transform: "rotate(-90deg)" }}>
-                      <circle cx="50" cy="50" r="42" fill="none" stroke="#F7F6F2" strokeWidth="8" />
-                      <circle cx="50" cy="50" r="42" fill="none" stroke={badge.color} strokeWidth="8" strokeLinecap="round" strokeDasharray="263.89" strokeDashoffset={263.89 - (263.89 * confidence) / 100} className="score-ring" />
-                    </svg>
-                  </div>
-                  <div style={{ textAlign: "left" }}>
-                    <div style={{ fontSize: 48, fontWeight: 800, letterSpacing: "-2px", color: "#1A1A18", lineHeight: 0.9 }}>
-                      <ScoreCounter target={confidence} />%
-                    </div>
-                    <div style={{ fontSize: 13, color: "#888780", marginTop: 6, fontWeight: 600 }}>
-                      {confidence >= 70 ? "High agreement" : confidence >= 40 ? "Moderate agreement" : "Low agreement"}
+              {/* score */}
+              <div style={{ textAlign:"center" }}>
+                <Eyebrow>Truth score</Eyebrow>
+                <div style={{ marginTop:6, display:"flex", alignItems:"center", gap:14 }}>
+                  <ScoreRing score={confidence} color={vc.ring} />
+                  <div style={{ textAlign:"left" }}>
+                    <div style={{ fontSize:13, color:"#6B7280", fontWeight:600, marginTop:4 }}>
+                      {confidence >= 70 ? "High agreement" : confidence >= 40 ? "Moderate" : "Low agreement"}
                     </div>
                   </div>
                 </div>
               </div>
-
             </div>
+
+            {/* bias tags */}
+            {analysis.bias_detected && analysis.bias_types?.length > 0 && (
+              <div style={{ marginTop:24, paddingTop:20, borderTop:`1px solid ${vc.border}` }}>
+                <Eyebrow>Bias detected</Eyebrow>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:8 }}>
+                  {analysis.bias_types.map((b, i) => (
+                    <Pill key={i} color="#92400E" bg="#FFFBEB" border="#FDE68A">{b}</Pill>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-        </FadeSection>
+        </Fade>
 
         {/* ── AI ANALYSIS ── */}
-        <FadeSection delay={120}>
-          <div className="glass-card">
-            <div className="divider" />
-            <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 32, marginBottom: 32, color: "#1A1A18" }}>AI Analysis</h2>
+        <Fade delay={100}>
+          <Card>
+            <Eyebrow>AI analysis</Eyebrow>
+            <h2 style={{ fontSize:22, fontWeight:800, color:"#111827", marginBottom:24 }}>What the AI found</h2>
 
-            {/* Summary */}
-            <div style={{ marginBottom: 20 }}>
-              <div className="section-eyebrow">NEUTRAL SUMMARY</div>
-              <div style={{ background: "#FAFAF8", border: "1px solid #EEEDE8", borderRadius: 16, padding: "20px 22px", lineHeight: 1.85, fontSize: 15, color: "#444" }}>
-                {analysis.summary || "No summary available"}
+            {/* summary */}
+            <div style={{ marginBottom:20 }}>
+              <Eyebrow>Neutral summary</Eyebrow>
+              <div style={{ background:"#F9FAFB", border:"1px solid #E5E7EB", borderRadius:12, padding:"16px 18px", lineHeight:1.85, fontSize:14, color:"#374151" }}>
+                {analysis.summary || "No summary available."}
               </div>
-              {/* ── BUG FIX #4: Detail expandable section ── */}
-              <DetailSection
-                claim={data.cleaned_text || data.raw_text || ""}
-                contextText={contextText}
-                detectedLang={detectedLang}
-              />
+              <DetailSection claim={data.cleaned_text||data.raw_text||""} contextText={contextText} detectedLang={detectedLang} />
             </div>
 
-            {/* Reasoning */}
-            <div style={{ marginTop: 8 }}>
-              <div className="section-eyebrow">AI REASONING</div>
-              <div style={{ background: "#FAFAF8", border: "1px solid #EEEDE8", borderRadius: 16, padding: "20px 22px", lineHeight: 1.85, fontSize: 15, color: "#444" }}>
-                {analysis.reasoning || "No reasoning available"}
-              </div>
-            </div>
+            <Divider />
 
-            {/* Translation panel — summary + reasoning */}
-            <AnalysisTranslationPanel
-              detectedLang={detectedLang}
-              originalSummary={analysis.summary}
-              originalReasoning={analysis.reasoning}
-            />
-          </div>
-        </FadeSection>
-
-        {/* ── SOURCES SECTION ── */}
-        <FadeSection delay={0}>
-          <div style={{ marginTop: 16, marginBottom: 28, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+            {/* reasoning */}
             <div>
-              <div className="divider" />
-              <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 32, color: "#1A1A18" }}>Trusted Source Coverage</h2>
+              <Eyebrow>AI reasoning</Eyebrow>
+              <div style={{ background:"#F9FAFB", border:"1px solid #E5E7EB", borderRadius:12, padding:"16px 18px", lineHeight:1.85, fontSize:14, color:"#374151" }}>
+                {analysis.reasoning || "No reasoning available."}
+              </div>
             </div>
-            <div style={{ background: "#fff", border: "1px solid #EEEDE8", borderRadius: 12, padding: "8px 16px", fontSize: 13, fontWeight: 700, color: "#888780" }}>
-              {searchResults.length} source{searchResults.length !== 1 ? "s" : ""} found
+
+            {/* missing context */}
+            {analysis.missing_context && analysis.missing_context !== "Not available" && (
+              <>
+                <Divider />
+                <div>
+                  <Eyebrow>Missing context</Eyebrow>
+                  <div style={{ background:"#FFFBEB", border:"1px solid #FDE68A", borderRadius:12, padding:"14px 16px", lineHeight:1.8, fontSize:14, color:"#92400E" }}>
+                    {analysis.missing_context}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* translation */}
+            <AnalysisPanel detectedLang={detectedLang} summary={analysis.summary} reasoning={analysis.reasoning} />
+          </Card>
+        </Fade>
+
+        {/* ── SOURCES ── */}
+        <Fade delay={140}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:18 }}>
+            <div>
+              <Eyebrow>Source coverage</Eyebrow>
+              <h2 style={{ fontSize:20, fontWeight:800, color:"#111827" }}>Verified against {searchResults.length} source{searchResults.length !== 1 ? "s" : ""}</h2>
             </div>
           </div>
-        </FadeSection>
+        </Fade>
 
-        {searchResults.map((article, index) => (
-          <ArticleCard key={index} article={article} index={index} />
+        {searchResults.length === 0 && (
+          <Fade delay={160}>
+            <div style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:20, padding:"40px 30px", textAlign:"center", color:"#6B7280" }}>
+              <div style={{ fontSize:36, marginBottom:12 }}>🔍</div>
+              <p style={{ fontWeight:600, fontSize:15 }}>No sources found for this claim.</p>
+              <p style={{ fontSize:13, marginTop:6 }}>Try a different query or check your SerpAPI quota.</p>
+            </div>
+          </Fade>
+        )}
+
+        {searchResults.map((article, i) => (
+          <ArticleCard key={i} article={article} index={i} />
         ))}
 
-        {/* ── FOOTER CTA ── */}
-        <FadeSection delay={100} threshold={0.05}>
-          <div style={{ marginTop: 48, textAlign: "center" }}>
-            <div style={{ width: 40, height: 3, background: "#1A1A18", borderRadius: 99, margin: "0 auto 20px" }} />
-            <p style={{ fontSize: 15, color: "#888780", marginBottom: 24, lineHeight: 1.7 }}>Have another claim to verify?</p>
+        {/* ── CTA ── */}
+        <Fade delay={60}>
+          <div style={{ marginTop:48, textAlign:"center" }}>
+            <p style={{ fontSize:14, color:"#9CA3AF", marginBottom:20 }}>Have another claim to verify?</p>
             <button onClick={() => navigate("/")}
-              style={{ background: "#1A1A18", color: "#FAFAF8", border: "none", borderRadius: 14, padding: "15px 32px", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", boxShadow: "0 8px 24px rgba(26,26,24,0.18)", transition: "all 0.2s cubic-bezier(0.16,1,0.3,1)" }}
-              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 14px 32px rgba(26,26,24,0.22)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 8px 24px rgba(26,26,24,0.18)"; }}>
+              style={{ background:"#111827", color:"#F9FAFB", border:"none", borderRadius:14, padding:"14px 32px", fontSize:14, fontWeight:700, cursor:"pointer", transition:"all 0.2s ease", boxShadow:"0 4px 16px rgba(17,24,39,0.15)" }}
+              onMouseEnter={e => { e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 8px 24px rgba(17,24,39,0.2)"; }}
+              onMouseLeave={e => { e.currentTarget.style.transform="translateY(0)"; e.currentTarget.style.boxShadow="0 4px 16px rgba(17,24,39,0.15)"; }}>
               Check another claim →
             </button>
           </div>
-        </FadeSection>
+        </Fade>
 
       </main>
     </div>

@@ -1,8 +1,6 @@
 from pathlib import Path
 from dotenv import load_dotenv
-from services.translation_service import generate_multilingual_queries
 
-# Walk up from this file to find .env at project root
 _HERE = Path(__file__).resolve()
 for _parent in [_HERE.parent, _HERE.parent.parent, _HERE.parent.parent.parent]:
     _env = _parent / ".env"
@@ -17,37 +15,39 @@ import json
 import logging
 import requests
 import time
+import asyncio
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, wait
 from bs4 import BeautifulSoup
 from processors.ocr import extract_text_from_image
 from processors.text_cleaner import clean_text, word_count
-from services.groq_service import analyze_claim
+from services.groq_service import analyze_claim, LANGUAGE_NAMES, get_fallback_str
+from services.language_service import detect_language
+from services.translation_service import generate_multilingual_queries
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 _SERP_KEY = os.getenv("SERP_API_KEY")
 if not _SERP_KEY:
-    logger.error("❌ SERP_API_KEY is not set. Check your .env file location.")
+    logger.error("❌ SERP_API_KEY is not set.")
 else:
     logger.info(f"✅ SERP_API_KEY loaded ({_SERP_KEY[:6]}...)")
 
-
 # ─────────────────────────────────────────────
-# 🔹 CONSTANTS
-# OPTIMIZATION: reduced timeouts + result counts
+# 🔹 CONSTANTS — tuned for <12s total
 # ─────────────────────────────────────────────
-MAX_ARTICLE_CHARS = 2000
-MAX_EXCERPT_CHARS = 400
-MAX_QUERY_WORDS   = 12           # trimmed from 15 — shorter = faster SerpAPI
-MAX_RESULTS       = 5
-SCRAPE_TIMEOUT    = 6            # reduced from 10s → 6s
-SERP_TIMEOUT      = 12           # reduced from 20s → 12s
-SERP_NUM_RESULTS  = 2            # reduced from 3 → 2 per source
-MAX_SOURCES       = 8            # cap: never search more than 8 sources
-MAX_SEARCH_WORKERS = 8           # parallel SerpAPI threads
-MAX_SCRAPE_WORKERS = 8           # parallel scrape threads
+MAX_ARTICLE_CHARS  = 1500   # ↓ from 2000 — less scrape text = faster LLM
+MAX_EXCERPT_CHARS  = 300    # ↓ from 400
+MAX_QUERY_WORDS    = 10     # ↓ from 12 — shorter query = faster SerpAPI
+MAX_RESULTS        = 3      # ↓ from 5 — fewer results = faster scoring
+SCRAPE_TIMEOUT     = 4      # ↓ from 6
+SERP_TIMEOUT       = 8      # ↓ from 12
+SERP_NUM_RESULTS   = 2
+MAX_SOURCES        = 6      # ↓ from 8 — fewer parallel searches
+MAX_SEARCH_WORKERS = 6
+MAX_SCRAPE_WORKERS = 6
+SCRAPE_HARD_LIMIT  = 4.5    # cancel scraping after this many seconds total
 
 REQUEST_HEADERS = {
     "User-Agent": (
@@ -69,7 +69,7 @@ BLOCKED_SIGNALS = [
 # 🔹 LOAD sources.json
 # ─────────────────────────────────────────────
 def load_sources() -> dict:
-    this_file = Path(__file__).resolve()
+    this_file  = Path(__file__).resolve()
     candidates = [
         this_file.parent.parent / "sources.json",
         this_file.parent / "sources.json",
@@ -81,7 +81,6 @@ def load_sources() -> dict:
                 data = json.load(f)
             logger.info(f"✅ Loaded sources.json from: {path}")
             return data
-
     logger.error("❌ sources.json not found")
     return {
         "default": [
@@ -97,7 +96,6 @@ def load_sources() -> dict:
 
 # ─────────────────────────────────────────────
 # 🔹 SELECT SOURCES
-# OPTIMIZATION: sort by weight desc, cap at MAX_SOURCES
 # ─────────────────────────────────────────────
 def get_selected_sources(focus_regions: list) -> list:
     data = load_sources()
@@ -111,7 +109,6 @@ def get_selected_sources(focus_regions: list) -> list:
                 out.append(s)
 
     add(data.get("default", []))
-
     for region in focus_regions:
         if region == "International":
             add(data.get("international", []))
@@ -122,24 +119,30 @@ def get_selected_sources(focus_regions: list) -> list:
         else:
             logger.warning(f"Unknown region: '{region}'")
 
-    # OPTIMIZATION: sort highest-weight first, then cap to MAX_SOURCES
     out.sort(key=lambda s: s.get("weight", 1.0), reverse=True)
     out = out[:MAX_SOURCES]
-
     logger.info(f"Selected {len(out)} sources (cap={MAX_SOURCES})")
     return out
 
 
 # ─────────────────────────────────────────────
-# 🔹 SCRAPE ARTICLE TEXT
+# 🔹 SCRAPE ARTICLE TEXT — fast, bails early
 # ─────────────────────────────────────────────
 def get_article_text(url: str, scrapeable: bool = True) -> str:
     if not scrapeable:
         return ""
     try:
-        resp = requests.get(url, headers=REQUEST_HEADERS, timeout=SCRAPE_TIMEOUT)
+        resp = requests.get(url, headers=REQUEST_HEADERS, timeout=SCRAPE_TIMEOUT,
+                            stream=True)
         resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
+        # Read only first 80KB — enough for the lede, avoids huge pages
+        content = b""
+        for chunk in resp.iter_content(chunk_size=8192):
+            content += chunk
+            if len(content) > 80_000:
+                break
+
+        soup = BeautifulSoup(content, "html.parser")
         for tag in soup(["script", "style", "nav", "footer", "header", "aside", "form"]):
             tag.decompose()
         article = (
@@ -154,12 +157,7 @@ def get_article_text(url: str, scrapeable: bool = True) -> str:
         if any(sig in text.lower() for sig in BLOCKED_SIGNALS):
             return ""
         return text[:MAX_ARTICLE_CHARS]
-    except requests.exceptions.Timeout:
-        return ""
-    except requests.exceptions.HTTPError:
-        return ""
-    except Exception as e:
-        logger.error(f"Scrape error {url}: {e}")
+    except Exception:
         return ""
 
 
@@ -192,37 +190,24 @@ def score_article(query, title, snippet, full_text, date, weight=1.0) -> float:
 
 
 # ─────────────────────────────────────────────
-# 🔹 SEARCH ONE SOURCE  (called in parallel)
-# OPTIMIZATION: each source is searched in its own thread
+# 🔹 SEARCH ONE SOURCE
 # ─────────────────────────────────────────────
-def _search_one_source(
-    source: dict,
-    translated_queries: dict,
-    api_key: str,
-) -> list:
-    """Search a single source via SerpAPI. Returns list of raw candidates."""
+def _search_one_source(source: dict, translated_queries: dict, api_key: str) -> list:
     source_language = source.get("language", "en")
-    search_query = translated_queries.get(
-        source_language,
-        translated_queries.get("en", "")
-    )
+    search_query = translated_queries.get(source_language, translated_queries.get("en", ""))
     full_query = f"{search_query} site:{source['domain']}"
 
     params = {
         "engine":  "google",
         "q":       full_query,
         "api_key": api_key,
-        "num":     SERP_NUM_RESULTS,   # 2 instead of 3
+        "num":     SERP_NUM_RESULTS,
         "hl":      source_language,
         "gl":      "in",
     }
 
     try:
-        resp = requests.get(
-            "https://serpapi.com/search",
-            params=params,
-            timeout=SERP_TIMEOUT,
-        )
+        resp = requests.get("https://serpapi.com/search", params=params, timeout=SERP_TIMEOUT)
         resp.raise_for_status()
         organic = resp.json().get("organic_results", [])
         logger.info(f"[{source['name']}] {len(organic)} results")
@@ -242,20 +227,16 @@ def _search_one_source(
 
 
 # ─────────────────────────────────────────────
-# 🔹 SERPAPI SEARCH  (fully parallel)
-# OPTIMIZATION: all SerpAPI calls fire simultaneously
+# 🔹 SERPAPI SEARCH — parallel + hard scrape timeout
 # ─────────────────────────────────────────────
-def search_with_serpapi(query: str, selected_sources: list, k: int = MAX_RESULTS) -> list:
+def search_with_serpapi(query: str, selected_sources: list, translated_queries: dict,
+                        k: int = MAX_RESULTS) -> list:
     api_key = os.getenv("SERP_API_KEY")
     if not api_key:
         logger.error("SERP_API_KEY missing")
         return []
 
-    # Translate query once, reuse across all parallel searches
-    translated_queries = generate_multilingual_queries(query)
-    logger.info(f"Multilingual queries: {list(translated_queries.keys())}")
-
-    # ── OPTIMIZATION: search ALL sources in parallel ──────────────────
+    # ── Parallel SerpAPI searches ──
     candidates = []
     t0 = time.time()
     with ThreadPoolExecutor(max_workers=MAX_SEARCH_WORKERS) as ex:
@@ -271,24 +252,38 @@ def search_with_serpapi(query: str, selected_sources: list, k: int = MAX_RESULTS
     if not candidates:
         return []
 
-    # ── Scrape in parallel (unchanged logic, tighter timeout) ────────
+    # ── Parallel scraping with hard time limit ──
     def scrape_candidate(c):
         text = get_article_text(c["link"], scrapeable=c["matched"].get("scrapeable", True))
-        if not text or len(text.strip()) < 80:
+        if not text or len(text.strip()) < 60:
             text = f"{c['title']}. {c['snippet']}"
         return text
 
     t1 = time.time()
+    scraped = {}
     with ThreadPoolExecutor(max_workers=MAX_SCRAPE_WORKERS) as ex:
-        futures = {ex.submit(scrape_candidate, c): c for c in candidates}
-        scraped = {}
-        for future in as_completed(futures):
-            c = futures[future]
-            scraped[c["link"]] = future.result()
+        future_to_c = {ex.submit(scrape_candidate, c): c for c in candidates}
 
-    logger.info(f"All scrapes done in {time.time()-t1:.1f}s")
+        # wait() never raises — it just returns done/not-done sets after the timeout
+        done, not_done = wait(future_to_c, timeout=SCRAPE_HARD_LIMIT)
 
-    # ── Score + rank ──────────────────────────────────────────────────
+        # collect results from completed futures
+        for future in done:
+            c = future_to_c[future]
+            try:
+                scraped[c["link"]] = future.result()
+            except Exception:
+                scraped[c["link"]] = f"{c['title']}. {c['snippet']}"
+
+        # cancel timed-out futures (best-effort) and fall back to snippet
+        for future in not_done:
+            future.cancel()
+            c = future_to_c[future]
+            scraped[c["link"]] = f"{c['title']}. {c['snippet']}"
+            logger.warning(f"Scrape timed out (skipped): {c['link'][:60]}")
+
+    logger.info(f"All scrapes done in {time.time()-t1:.1f}s — {len(done)} done, {len(not_done)} timed out")
+
     results = []
     for c in candidates:
         full_text = scraped.get(c["link"], f"{c['title']}. {c['snippet']}")
@@ -337,12 +332,38 @@ def build_context(search_results: list) -> tuple:
 
 
 # ─────────────────────────────────────────────
-# 🔹 MAIN PIPELINE
+# 🔹 LANGUAGE-AWARE FALLBACK BUILDER
+# ─────────────────────────────────────────────
+def _build_analysis_fallback(lang: str) -> dict:
+    unavailable   = get_fallback_str(lang, "unavailable")
+    no_verdict    = get_fallback_str(lang, "no_verdict")
+    not_available = get_fallback_str(lang, "not_available")
+    return {
+        "event_recency":      "unclear",
+        "truth_score":        0,
+        "bias_detected":      False,
+        "bias_types":         [],
+        "missing_context":    not_available,
+        "summary":            f"{unavailable}.",
+        "reasoning":          f"{no_verdict}.",
+        "final_verdict":      "unclear",
+        "detected_language":  lang,
+        "language_supported": lang in LANGUAGE_NAMES,
+    }
+
+
+# ─────────────────────────────────────────────
+# 🔹 MAIN PIPELINE — concurrent lang+translate
+# KEY OPTIMISATION: language detection and translation
+# run in a thread pool alongside source selection,
+# so nothing blocks sequentially.
 # ─────────────────────────────────────────────
 async def process_input(file=None, content=None, focus_regions: list = []) -> dict:
     if file and content:
         raise ValueError("Provide either file or content, not both.")
 
+    # ── Step 1: get raw text ──
+    t_start = time.time()
     if file is not None:
         image_bytes = await file.read()
         raw_text    = extract_text_from_image(image_bytes)
@@ -359,33 +380,65 @@ async def process_input(file=None, content=None, focus_regions: list = []) -> di
     if not cleaned or len(cleaned.strip()) < 3:
         raise ValueError("Input text too short after cleaning.")
 
-    short_query      = " ".join(cleaned.split()[:MAX_QUERY_WORDS])
-    selected_sources = get_selected_sources(focus_regions)
+    short_query = " ".join(cleaned.split()[:MAX_QUERY_WORDS])
 
-    search_results   = search_with_serpapi(query=short_query, selected_sources=selected_sources)
-    context_text, dates = build_context(search_results)
+    # ── Step 2: run lang detection + source selection concurrently ──
+    loop = asyncio.get_event_loop()
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        lang_future   = loop.run_in_executor(pool, detect_language, cleaned)
+        source_future = loop.run_in_executor(pool, get_selected_sources, focus_regions)
+
+        lang_info_raw, selected_sources = await asyncio.gather(lang_future, source_future)
 
     try:
-        analysis = analyze_claim(claim=cleaned, context_text=context_text, dates=dates)
+        detected_lang = lang_info_raw.get("fallback", "en")
+    except Exception:
+        detected_lang = "en"
+
+    logger.info(f"Pipeline detected language: {detected_lang} in {time.time()-t_start:.1f}s")
+
+    # ── Step 3: translate query (uses detected lang) ──
+    t2 = time.time()
+    translated_queries = await loop.run_in_executor(
+        None, generate_multilingual_queries, short_query
+    )
+    logger.info(f"Translation done in {time.time()-t2:.1f}s — langs: {list(translated_queries.keys())}")
+
+    # ── Step 4: search + scrape ──
+    t3 = time.time()
+    search_results = await loop.run_in_executor(
+        None,
+        lambda: search_with_serpapi(
+            query=short_query,
+            selected_sources=selected_sources,
+            translated_queries=translated_queries,
+        )
+    )
+    logger.info(f"Search+scrape done in {time.time()-t3:.1f}s")
+
+    context_text, dates = build_context(search_results)
+
+    # ── Step 5: AI verdict ──
+    t4 = time.time()
+    try:
+        analysis = await loop.run_in_executor(
+            None, lambda: analyze_claim(claim=cleaned, context_text=context_text, dates=dates)
+        )
     except Exception as e:
         logger.error(f"AI error: {e}")
-        analysis = {
-            "event_recency":  "unclear",
-            "truth_score":    0,
-            "bias_detected":  False,
-            "bias_types":     [],
-            "missing_context": "AI unavailable",
-            "summary":        "AI analysis temporarily unavailable.",
-            "reasoning":      "AI reasoning temporarily unavailable.",
-            "final_verdict":  "unclear",
-        }
+        analysis = _build_analysis_fallback(detected_lang)
+    logger.info(f"AI verdict done in {time.time()-t4:.1f}s")
+
+    logger.info(f"Total pipeline: {time.time()-t_start:.1f}s")
 
     return {
-        "input_type":     input_type,
-        "focus_regions":  focus_regions,
-        "raw_text":       raw_text,
-        "cleaned_text":   cleaned,
-        "word_count":     word_count(cleaned),
-        "search_results": search_results,
-        "analysis":       analysis,
+        "input_type":        input_type,
+        "focus_regions":     focus_regions,
+        "raw_text":          raw_text,
+        "cleaned_text":      cleaned,
+        "detected_language": detected_lang,
+        "word_count":        word_count(cleaned),
+        "search_results":    search_results,
+        "analysis":          analysis,
     }
