@@ -17,13 +17,10 @@ import requests
 import time
 import asyncio
 
+import httpx
 from concurrent.futures import ThreadPoolExecutor, as_completed, wait
 from bs4 import BeautifulSoup
-from processors.ocr import extract_text_from_image
-from processors.text_cleaner import clean_text, word_count
 from services.groq_service import analyze_claim, LANGUAGE_NAMES, get_fallback_str
-from services.language_service import detect_language
-from services.translation_service import generate_multilingual_queries
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -33,6 +30,11 @@ if not _SERP_KEY:
     logger.error("❌ SERP_API_KEY is not set.")
 else:
     logger.info(f"✅ SERP_API_KEY loaded ({_SERP_KEY[:6]}...)")
+
+# ── Other-service URLs ─────────────────────────────────────────────────────
+OCR_SERVICE_URL       = os.getenv("OCR_SERVICE_URL",       "http://ocr:8002")
+RAG_SERVICE_URL       = os.getenv("RAG_SERVICE_URL",       "http://rag:8003")
+TRANSLATE_SERVICE_URL = os.getenv("TRANSLATE_SERVICE_URL", "http://translate:8004")
 
 # ─────────────────────────────────────────────
 # 🔹 CONSTANTS
@@ -48,13 +50,6 @@ MAX_SOURCES        = 6
 MAX_SEARCH_WORKERS = 6
 MAX_SCRAPE_WORKERS = 6
 SCRAPE_HARD_LIMIT  = 4.5
-
-# ── RAG config ────────────────────────────────
-# Minimum similarity score for a ChromaDB hit to be
-# considered a cache HIT (0.0–1.0). Below this → fallback to SerpAPI.
-RAG_HIT_THRESHOLD  = 0.72
-# Minimum number of RAG results required to skip SerpAPI entirely.
-RAG_MIN_RESULTS    = 2
 
 REQUEST_HEADERS = {
     "User-Agent": (
@@ -73,113 +68,65 @@ BLOCKED_SIGNALS = [
 
 
 # ─────────────────────────────────────────────
-# 🔹 LAZY VECTOR STORE — only loads if ChromaDB available
+# 🔹 CROSS-SERVICE CALLS (httpx)
 # ─────────────────────────────────────────────
-_vs = None
-_vs_failed = False  # if ChromaDB fails once, skip it for the rest of the session
-
-def _get_vector_store():
-    """
-    Lazy-load VectorStore. Returns None if ChromaDB/embedder
-    is unavailable — caller falls through to SerpAPI.
-    """
-    global _vs, _vs_failed
-    if _vs_failed:
-        return None
-    if _vs is not None:
-        return _vs
-    try:
-        from services.vector_store import VectorStore
-        _vs = VectorStore()
-        logger.info(f"[RAG] VectorStore ready — {_vs.count()} chunks in index")
-        return _vs
-    except Exception as e:
-        logger.warning(f"[RAG] VectorStore unavailable (will use SerpAPI only): {e}")
-        _vs_failed = True
-        return None
-
-
-# ─────────────────────────────────────────────
-# 🔹 CONVERT RAG RESULTS → search_results format
-# Normalises ChromaDB chunk dicts to match the
-# format that build_context() and the frontend expect.
-# ─────────────────────────────────────────────
-def _rag_to_search_results(rag_results: list) -> list:
-    out = []
-    for r in rag_results:
-        full_text = r.get("full_text") or r.get("chunk_text", "")
-        out.append({
-            "source":       r.get("source", "Cached"),
-            "url":          r.get("url", ""),
-            "title":        r.get("chunk_text", "")[:120],   # use chunk as title preview
-            "snippet":      r.get("chunk_text", "")[:300],
-            "date":         r.get("published", "Unknown"),
-            "score":        round(r.get("similarity", 0) * 100, 1),
-            "trust_weight": 1.0,
-            "excerpt":      full_text[:MAX_EXCERPT_CHARS],
-            "full_text":    full_text,
-            "from_rag":     True,   # flag so frontend/logs can distinguish
-        })
-    return out
-
-
-# ─────────────────────────────────────────────
-# 🔹 RAG SEARCH — primary path
-# ─────────────────────────────────────────────
-def search_with_rag(
-    query: str,
-    detected_lang: str = "en",
-    top_k: int = MAX_RESULTS,
-) -> tuple[list, bool]:
-    """
-    Search ChromaDB for relevant chunks.
-
-    Returns:
-        (results, is_hit)
-        results: list in search_results format (may be empty)
-        is_hit:  True if enough high-quality results found → skip SerpAPI
-                 False → caller should run SerpAPI fallback
-    """
-    vs = _get_vector_store()
-    if vs is None:
-        return [], False
-
-    if vs.is_empty():
-        logger.info("[RAG] Index is empty — falling back to SerpAPI")
-        return [], False
-
-    try:
-        t0 = time.time()
-        rag_results = vs.search(
-            query_text=query,
-            query_language=detected_lang,
-            top_k=top_k,
-            apply_entity_filter=True,
+async def call_ocr(image_bytes: bytes) -> str:
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.post(
+            f"{OCR_SERVICE_URL}/ocr/extract",
+            files={"file": ("image.jpg", image_bytes, "image/jpeg")},
         )
-        logger.info(f"[RAG] Search done in {time.time()-t0:.2f}s — {len(rag_results)} results")
+        resp.raise_for_status()
+        return resp.json()["text"]
 
-        if not rag_results:
-            logger.info("[RAG] Miss — no results above threshold, falling back to SerpAPI")
-            return [], False
 
-        # Check if we have enough high-quality hits
-        top_similarity = rag_results[0].get("similarity", 0)
-        if top_similarity < RAG_HIT_THRESHOLD or len(rag_results) < RAG_MIN_RESULTS:
-            logger.info(
-                f"[RAG] Weak hit (top sim={top_similarity:.2f}, count={len(rag_results)}) "
-                f"— falling back to SerpAPI"
+async def call_translate_detect(text: str) -> str:
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.post(
+            f"{TRANSLATE_SERVICE_URL}/translate/detect",
+            json={"text": text},
+        )
+        resp.raise_for_status()
+        return resp.json()["language"]
+
+
+async def call_translate_queries(text: str, target_languages: list = None) -> dict:
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.post(
+            f"{TRANSLATE_SERVICE_URL}/translate/queries",
+            json={"text": text, "target_languages": target_languages},
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
+async def call_rag_search(query: str, language: str, top_k: int = MAX_RESULTS) -> tuple[list, bool]:
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(
+                f"{RAG_SERVICE_URL}/rag/search",
+                json={"query": query, "language": language, "top_k": top_k},
             )
-            return _rag_to_search_results(rag_results), False
-
-        logger.info(
-            f"[RAG] ✅ Cache HIT — top similarity={top_similarity:.2f}, "
-            f"{len(rag_results)} results — skipping SerpAPI"
-        )
-        return _rag_to_search_results(rag_results), True
-
+            resp.raise_for_status()
+            data = resp.json()
+            return data.get("results", []), data.get("hit", False)
     except Exception as e:
-        logger.error(f"[RAG] Search failed: {e}")
+        logger.error(f"[RAG] search call failed: {e}")
         return [], False
+
+
+async def call_rag_writeback(results: list) -> None:
+    """Fire-and-forget write-back to the RAG service."""
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                f"{RAG_SERVICE_URL}/rag/writeback",
+                json={"results": results},
+            )
+            resp.raise_for_status()
+            logger.info(f"[RAG] Write-back done: {resp.json()}")
+    except Exception as e:
+        logger.error(f"[RAG] Write-back failed (non-fatal): {e}")
 
 
 # ─────────────────────────────────────────────
@@ -447,25 +394,6 @@ def build_context(search_results: list) -> tuple:
 
 
 # ─────────────────────────────────────────────
-# 🔹 CACHE-ASIDE WRITE-BACK (async, non-blocking)
-# After a SerpAPI fallback, store results in ChromaDB
-# so future queries on the same topic hit the fast path.
-# ─────────────────────────────────────────────
-def _write_back_to_rag(search_results: list):
-    """Fire-and-forget write-back. Called in a background thread."""
-    try:
-        vs = _get_vector_store()
-        if vs is None:
-            return
-        live_results = [r for r in search_results if not r.get("from_rag")]
-        if not live_results:
-            return
-        vs.write_back(live_results)
-    except Exception as e:
-        logger.error(f"[RAG] Write-back failed (non-fatal): {e}")
-
-
-# ─────────────────────────────────────────────
 # 🔹 LANGUAGE-AWARE FALLBACK BUILDER
 # ─────────────────────────────────────────────
 def _build_analysis_fallback(lang: str) -> dict:
@@ -489,26 +417,28 @@ def _build_analysis_fallback(lang: str) -> dict:
 # ─────────────────────────────────────────────
 # 🔹 MAIN PIPELINE
 # Flow:
-#   1. OCR / clean text
-#   2. Lang detect + source select (concurrent)
-#   3. RAG search (ChromaDB)
+#   1. OCR / clean text          (OCR service via HTTP if image)
+#   2. Lang detect + source select (Translate service via HTTP + local sources.json)
+#   3. RAG search (RAG service via HTTP)
 #        ├─ HIT  → skip SerpAPI, go to step 5
 #        └─ MISS → step 4
-#   4. SerpAPI live search + scrape
-#        └─ write-back to ChromaDB in background
-#   5. Build context → Groq verdict
+#   4. SerpAPI live search + scrape (local)
+#        └─ write-back to RAG service via HTTP in background
+#   5. Build context → Groq verdict (local)
 # ─────────────────────────────────────────────
 async def process_input(file=None, content=None, focus_regions: list = []) -> dict:
     if file and content:
         raise ValueError("Provide either file or content, not both.")
 
+    from processors.text_cleaner import clean_text, word_count
+
     # ── Step 1: get raw text ──────────────────────────────────────────────────
     t_start = time.time()
     if file is not None:
         image_bytes = await file.read()
-        raw_text    = extract_text_from_image(image_bytes)
+        raw_text    = await call_ocr(image_bytes)
         input_type  = "image"
-        logger.info("Input: image (OCR)")
+        logger.info("Input: image (OCR via ocr-service)")
     elif content is not None:
         raw_text   = content
         input_type = "text"
@@ -522,30 +452,22 @@ async def process_input(file=None, content=None, focus_regions: list = []) -> di
 
     short_query = " ".join(cleaned.split()[:MAX_QUERY_WORDS])
 
-    # ── Step 2: lang detect + source select (concurrent) ─────────────────────
+    # ── Step 2: lang detect (translate service) + source select (local) ──────
     loop = asyncio.get_event_loop()
 
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        lang_future   = loop.run_in_executor(pool, detect_language, cleaned)
-        source_future = loop.run_in_executor(pool, get_selected_sources, focus_regions)
-        lang_info_raw, selected_sources = await asyncio.gather(lang_future, source_future)
-
-    try:
-        detected_lang = lang_info_raw.get("fallback", "en")
-    except Exception:
-        detected_lang = "en"
+    detected_lang, selected_sources = await asyncio.gather(
+        call_translate_detect(cleaned),
+        loop.run_in_executor(None, get_selected_sources, focus_regions),
+    )
 
     logger.info(f"Pipeline detected language: {detected_lang} in {time.time()-t_start:.1f}s")
 
     # ── Step 3: RAG search (primary path) ────────────────────────────────────
     t_rag = time.time()
-    rag_results, rag_hit = await loop.run_in_executor(
-        None,
-        lambda: search_with_rag(
-            query=short_query,
-            detected_lang=detected_lang,
-            top_k=MAX_RESULTS,
-        )
+    rag_results, rag_hit = await call_rag_search(
+        query=short_query,
+        language=detected_lang,
+        top_k=MAX_RESULTS,
     )
     logger.info(f"[RAG] Done in {time.time()-t_rag:.2f}s — hit={rag_hit}")
 
@@ -556,9 +478,8 @@ async def process_input(file=None, content=None, focus_regions: list = []) -> di
     else:
         # Need translated queries for SerpAPI
         t2 = time.time()
-        translated_queries = await loop.run_in_executor(
-            None, generate_multilingual_queries, short_query
-        )
+        target_langs = list({s.get("language", "en") for s in selected_sources})
+        translated_queries = await call_translate_queries(short_query, target_langs)
         logger.info(f"Translation done in {time.time()-t2:.1f}s — langs: {list(translated_queries.keys())}")
 
         t3 = time.time()
@@ -576,9 +497,9 @@ async def process_input(file=None, content=None, focus_regions: list = []) -> di
         search_results = live_results + [r for r in rag_results if r not in live_results]
         search_results = search_results[:MAX_RESULTS]
 
-        # Write-back live results to ChromaDB in background (non-blocking)
+        # Write-back live results to RAG service in background (non-blocking)
         if live_results:
-            loop.run_in_executor(None, _write_back_to_rag, live_results)
+            asyncio.create_task(call_rag_writeback(live_results))
 
     # ── Step 5: Build context + AI verdict ───────────────────────────────────
     context_text, dates = build_context(search_results)
@@ -608,5 +529,5 @@ async def process_input(file=None, content=None, focus_regions: list = []) -> di
         "word_count":        word_count(cleaned),
         "search_results":    search_results,
         "analysis":          analysis,
-        "rag_hit":           rag_hit,   # useful for debugging/monitoring
+        "rag_hit":           rag_hit,
     }

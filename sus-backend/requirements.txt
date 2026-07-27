@@ -1,6 +1,8 @@
+
 fastapi
 uvicorn
 python-multipart
+
 langdetect
 
 easyocr
@@ -8,7 +10,24 @@ pillow
 
 requests
 beautifulsoup4
+feedparser          # RSS feed ingestion (RAG ingestion pipeline)
 
 python-dotenv
 
 groq
+
+
+spacy         
+# After pip install, also run:
+#   python -m spacy download en_core_web_sm
+#   python -m spacy download xx_ent_wiki_sm
+
+
+chromadb            
+sentence-transformers 
+
+# ── RAG — Scheduling (background ingestion job) ───────────────────────────────
+apscheduler         # runs the RSS ingestion pipeline every few hours
+
+
+numpy==1.26.4

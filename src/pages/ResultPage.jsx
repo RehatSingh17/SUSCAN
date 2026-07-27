@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "http://localhost:80";
 
 // ── hooks ─────────────────────────────────────────────────────────────────────
 function useInView(threshold = 0.1) {
