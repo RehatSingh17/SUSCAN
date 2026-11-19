@@ -1,5 +1,6 @@
 import time
 import logging
+import threading
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -9,30 +10,45 @@ from services.vector_store import VectorStore
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# ── RAG config (moved unchanged from mcp/router.py) ───────────────────────────
+# ── RAG config ────────────────────────────────────────────────────────────────
 RAG_HIT_THRESHOLD = 0.72
 RAG_MIN_RESULTS   = 2
 MAX_EXCERPT_CHARS = 300
 
 _vs = None
-_vs_failed = False  # if ChromaDB fails once, skip it for the rest of the session
+_vs_failed = False
+_vs_lock = threading.Lock()
 
 
-def _get_vector_store():
-    """Lazy-load VectorStore. Returns None if ChromaDB/embedder is unavailable."""
+def _get_vector_store(block: bool = True):
+    """
+    Shared VectorStore, loaded exactly once under a lock (startup preload and
+    request threads can no longer load the embedding model twice).
+
+    block=False -> if another thread is still loading it, return None at once
+    instead of making the caller wait. Search uses this so a warming index
+    shows up as a fast miss, not a 15 s timeout.
+    """
     global _vs, _vs_failed
-    if _vs_failed:
-        return None
     if _vs is not None:
         return _vs
-    try:
-        _vs = VectorStore()
-        logger.info(f"[RAG] VectorStore ready — {_vs.count()} chunks in index")
-        return _vs
-    except Exception as e:
-        logger.warning(f"[RAG] VectorStore unavailable: {e}")
-        _vs_failed = True
+    if _vs_failed:
         return None
+    if not block and _vs_lock.locked():
+        return None
+    with _vs_lock:
+        if _vs is not None:
+            return _vs
+        if _vs_failed:
+            return None
+        try:
+            _vs = VectorStore()
+            logger.info(f"[RAG] VectorStore ready — {_vs.count()} chunks in index")
+            return _vs
+        except Exception as e:
+            logger.warning(f"[RAG] VectorStore unavailable: {e}")
+            _vs_failed = True
+            return None
 
 
 def _rag_to_search_results(rag_results: list) -> list:
@@ -60,15 +76,17 @@ class SearchRequest(BaseModel):
     top_k: int = 3
 
 
+# NOTE: plain `def`, not `async def` — FastAPI runs it in a worker thread, so the
+# embedding + Chroma work no longer freezes the event loop for every other request.
 @router.post("/rag/search")
-async def search(req: SearchRequest):
+def search(req: SearchRequest):
     """
-    Search ChromaDB for relevant chunks.
-    Returns {"results": [...], "hit": bool} — hit=True means the caller
-    should skip SerpAPI, hit=False means fall back to a live search.
+    Returns {"results": [...], "hit": bool}. hit=True -> caller skips SerpAPI.
+    While the index is still warming it answers immediately with a miss.
     """
-    vs = _get_vector_store()
+    vs = _get_vector_store(block=True)
     if vs is None:
+        logger.info("[RAG] Index warming or unavailable — fast miss")
         return {"results": [], "hit": False}
 
     if vs.is_empty():
@@ -86,7 +104,10 @@ async def search(req: SearchRequest):
         logger.info(f"[RAG] Search done in {time.time()-t0:.2f}s — {len(rag_results)} results")
 
         if not rag_results:
-            logger.info("[RAG] Miss — no results above threshold")
+            logger.warning(
+                "[RAG] No results returned. "
+                "Check similarity threshold and vector retrieval."
+            )
             return {"results": [], "hit": False}
 
         top_similarity = rag_results[0].get("similarity", 0)

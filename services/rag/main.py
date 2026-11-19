@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import logging
+import asyncio
 import threading
 from contextlib import asynccontextmanager
 
@@ -44,11 +45,47 @@ def _start_scheduler(interval_hours: int = 4):
         return None
 
 
+def _preload_then_ingest():
+    """Load models and vector store, then start background ingestion."""
+
+    try:
+        from routes.search import _get_vector_store
+
+        vs = _get_vector_store(block=True)
+
+        if vs is None:
+            logger.error("[startup] VectorStore initialization failed")
+            return
+
+        logger.info(
+            f"[startup] VectorStore ready — {vs.count()} chunks loaded"
+        )
+
+    except Exception as e:
+        logger.exception(f"[startup] VectorStore preload failed: {e}")
+        return
+
+    try:
+        from processors.ner import extract_entities
+
+        extract_entities("warm up Delhi", language="en")
+        extract_entities("warm up Delhi", language="hi")
+
+    except Exception as e:
+        logger.warning(f"[startup] NER preload failed: {e}")
+
+    logger.info("[startup] RAG models preloaded")
+    _start_scheduler()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("[startup] RAG service starting...")
-    _start_scheduler()
-    logger.info("[startup] RAG service ready — ingestion warming in background")
+
+    # Load the VectorStore before accepting requests
+    await asyncio.to_thread(_preload_then_ingest)
+
+    logger.info("[startup] RAG service ready")
     yield
 
 

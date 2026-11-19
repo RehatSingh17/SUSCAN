@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter
 
 from services.ingestion import run_ingestion
-from services.vector_store import VectorStore
+from routes.search import _get_vector_store
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -19,18 +19,18 @@ def run_and_record() -> dict:
 
 
 @router.post("/rag/ingest/run")
-async def ingest_run():
+def ingest_run():
     """Manual trigger for one ingestion cycle."""
-    summary = run_and_record()
-    return summary
+    return run_and_record()
 
 
 @router.get("/rag/stats")
-async def stats():
-    vs = VectorStore()
+def stats():
     last = _last_ingestion["summary"]
+    vs = _get_vector_store(block=False)
     return {
-        "chunk_count":     vs.count(),
+        "status":          "ready" if vs is not None else "warming",
+        "chunk_count":     vs.count() if vs is not None else None,
         "last_ingestion":  last.get("timestamp") if last else None,
         "last_ingestion_summary": last,
     }

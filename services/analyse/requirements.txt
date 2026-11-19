@@ -7,3 +7,5 @@ groq
 requests
 beautifulsoup4
 langdetect
+redis
+sentence-transformers

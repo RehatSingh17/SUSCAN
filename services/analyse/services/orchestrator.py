@@ -115,18 +115,32 @@ async def call_rag_search(query: str, language: str, top_k: int = MAX_RESULTS) -
         return [], False
 
 
-async def call_rag_writeback(results: list) -> None:
-    """Fire-and-forget write-back to the RAG service."""
+async def call_rag_writeback(
+    results: list,
+    claim: str,
+    analysis: dict,
+    language: str,
+) -> None:
+    """Send live articles and completed claim analysis to RAG."""
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(
                 f"{RAG_SERVICE_URL}/rag/writeback",
-                json={"results": results},
+                json={
+                    "results": results,
+                    "claim": claim,
+                    "analysis": analysis,
+                    "language": language,
+                },
             )
             resp.raise_for_status()
-            logger.info(f"[RAG] Write-back done: {resp.json()}")
+
+            logger.info(
+                f"[RAG] Write-back response: {resp.json()}"
+            )
+
     except Exception as e:
-        logger.error(f"[RAG] Write-back failed (non-fatal): {e}")
+        logger.exception(f"[RAG] Write-back failed (non-fatal): {e}")
 
 
 # ─────────────────────────────────────────────
@@ -422,11 +436,14 @@ def _build_analysis_fallback(lang: str) -> dict:
 #   3. RAG search (RAG service via HTTP)
 #        ├─ HIT  → skip SerpAPI, go to step 5
 #        └─ MISS → step 4
-#   4. SerpAPI live search + scrape (local)
-#        └─ write-back to RAG service via HTTP in background
+#   4. SerpAPI live search + scrape (local, only on RAG miss)
 #   5. Build context → Groq verdict (local)
+#   6. Write live articles + completed claim analysis to RAG in background
 # ─────────────────────────────────────────────
-async def process_input(file=None, content=None, focus_regions: list = []) -> dict:
+async def process_input(file=None, content=None, focus_regions: list = None) -> dict:
+    # Normalize missing regions so cache keys and source selection use a list.
+    focus_regions = focus_regions or []
+
     if file and content:
         raise ValueError("Provide either file or content, not both.")
 
@@ -452,15 +469,50 @@ async def process_input(file=None, content=None, focus_regions: list = []) -> di
 
     short_query = " ".join(cleaned.split()[:MAX_QUERY_WORDS])
 
-    # ── Step 2: lang detect (translate service) + source select (local) ──────
-    loop = asyncio.get_event_loop()
+    # Redis cache helpers. Redis failures are fail-open: the normal pipeline continues.
+    from services.redis_cache import get_cached_claim, set_cached_claim
 
-    detected_lang, selected_sources = await asyncio.gather(
-        call_translate_detect(cleaned),
-        loop.run_in_executor(None, get_selected_sources, focus_regions),
+    loop = asyncio.get_running_loop()
+
+    # ── Step 2: detect language, then check exact-claim Redis cache ───────────
+    detected_lang = await call_translate_detect(cleaned)
+    logger.info(
+        f"Pipeline detected language: {detected_lang} "
+        f"in {time.time()-t_start:.1f}s"
     )
 
-    logger.info(f"Pipeline detected language: {detected_lang} in {time.time()-t_start:.1f}s")
+    cached_data = await loop.run_in_executor(
+        None,
+        lambda: get_cached_claim(
+            cleaned,
+            detected_lang,
+            focus_regions,
+        ),
+    )
+
+    if isinstance(cached_data, dict) and isinstance(cached_data.get("analysis"), dict):
+        logger.info("[Redis] Returning previously analysed claim")
+
+        return {
+            "input_type": input_type,
+            "focus_regions": focus_regions,
+            "raw_text": raw_text,
+            "cleaned_text": cleaned,
+            "detected_language": detected_lang,
+            "word_count": word_count(cleaned),
+            "search_results": cached_data.get("search_results", []),
+            "analysis": cached_data["analysis"],
+            "rag_hit": cached_data.get("rag_hit", False),
+            "cache_hit": True,
+        }
+
+    # Only select sources when Redis misses.
+    selected_sources = await loop.run_in_executor(
+        None,
+        get_selected_sources,
+        focus_regions,
+    )
+    logger.info("[Redis] Cache MISS — continuing normal pipeline")
 
     # ── Step 3: RAG search (primary path) ────────────────────────────────────
     t_rag = time.time()
@@ -472,6 +524,8 @@ async def process_input(file=None, content=None, focus_regions: list = []) -> di
     logger.info(f"[RAG] Done in {time.time()-t_rag:.2f}s — hit={rag_hit}")
 
     # ── Step 4: SerpAPI fallback (only on RAG miss) ───────────────────────────
+    live_results = []
+
     if rag_hit:
         search_results = rag_results
         logger.info("[RAG] Using cached results — SerpAPI skipped ✅")
@@ -497,10 +551,6 @@ async def process_input(file=None, content=None, focus_regions: list = []) -> di
         search_results = live_results + [r for r in rag_results if r not in live_results]
         search_results = search_results[:MAX_RESULTS]
 
-        # Write-back live results to RAG service in background (non-blocking)
-        if live_results:
-            asyncio.create_task(call_rag_writeback(live_results))
-
     # ── Step 5: Build context + AI verdict ───────────────────────────────────
     context_text, dates = build_context(search_results)
 
@@ -518,6 +568,35 @@ async def process_input(file=None, content=None, focus_regions: list = []) -> di
         analysis = _build_analysis_fallback(detected_lang)
     logger.info(f"AI verdict done in {time.time()-t4:.1f}s")
 
+    # Cache the complete response for four hours. The cache helper skips
+    # unclear verdicts and handles Redis errors without breaking analysis.
+    cache_data = {
+        "analysis": analysis,
+        "search_results": search_results,
+        "rag_hit": rag_hit,
+    }
+
+    await loop.run_in_executor(
+        None,
+        lambda: set_cached_claim(
+            claim=cleaned,
+            language=detected_lang,
+            data=cache_data,
+            focus_regions=focus_regions,
+        ),
+    )
+
+    # Save newly fetched articles and the completed analysis. On a RAG HIT,
+    # live_results is empty, so only the claim analysis is written back.
+    asyncio.create_task(
+        call_rag_writeback(
+            results=live_results,
+            claim=cleaned,
+            analysis=analysis,
+            language=detected_lang,
+        )
+    )
+
     logger.info(f"Total pipeline: {time.time()-t_start:.1f}s | source={'RAG' if rag_hit else 'SerpAPI'}")
 
     return {
@@ -530,4 +609,5 @@ async def process_input(file=None, content=None, focus_regions: list = []) -> di
         "search_results":    search_results,
         "analysis":          analysis,
         "rag_hit":           rag_hit,
+        "cache_hit":         False,
     }

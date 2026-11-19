@@ -17,25 +17,47 @@ COLLECTION_NAME      = "suscan_articles"
 EMBEDDING_MODEL      = "paraphrase-multilingual-MiniLM-L12-v2"
 RETENTION_DAYS       = int(os.getenv("CHROMA_RETENTION_DAYS", "60"))
 DEFAULT_TOP_K        = 5
-SIMILARITY_THRESHOLD = 0.70
+SIMILARITY_THRESHOLD = 0.40
 
-_client     = None
-_collection = None
-_embedder   = None
+_client             = None
+_collection         = None
+_claims_collection  = None
+_embedder            = None
+
 
 
 def _get_embedder():
     global _embedder
+
     if _embedder is None:
         try:
             from sentence_transformers import SentenceTransformer
-            logger.info(f"[VectorStore] Loading embedding model: {EMBEDDING_MODEL}")
-            _embedder = SentenceTransformer(EMBEDDING_MODEL)
+
+            model_path = (
+                "/root/.cache/huggingface/hub/"
+                "models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2/"
+                "snapshots/e8f8c211226b894fcb81acc59f3b34ba3efd5f42"
+            )
+
+            logger.info(
+                f"[VectorStore] Loading local embedding model: {model_path}"
+            )
+
+            _embedder = SentenceTransformer(
+                model_path,
+                local_files_only=True,
+            )
+
             logger.info("[VectorStore] Embedding model ready")
+
         except Exception as e:
-            logger.error(f"[VectorStore] Failed to load embedding model: {e}")
+            logger.exception(
+                f"[VectorStore] Failed to load embedding model: {e}"
+            )
             raise
+
     return _embedder
+
 
 
 def _get_collection():
@@ -58,6 +80,27 @@ def _get_collection():
             logger.error(f"[VectorStore] ChromaDB connection failed: {e}")
             raise
     return _collection
+
+
+def _get_claims_collection():
+    """Get or create the separate collection used for analysed claims."""
+    global _client, _claims_collection
+
+    # _get_collection() initializes the shared persistent Chroma client.
+    if _client is None:
+        _get_collection()
+
+    if _claims_collection is None:
+        _claims_collection = _client.get_or_create_collection(
+            name="suscan_claims",
+            metadata={"hnsw:space": "cosine"},
+        )
+        logger.info(
+            f"[VectorStore] Claims collection ready — "
+            f"{_claims_collection.count()} claims stored"
+        )
+
+    return _claims_collection
 
 
 def _make_chunk_id(url: str, chunk_index: int = 0) -> str:
@@ -91,6 +134,7 @@ class VectorStore:
 
     def __init__(self):
         self.collection = _get_collection()
+        self.claims_collection = _get_claims_collection()
         self.embedder   = _get_embedder()
 
     # ── ADD CHUNKS ────────────────────────────────────────────────────────────
@@ -263,6 +307,70 @@ class VectorStore:
         added = self.add_chunks(chunks_to_add)
         logger.info(f"[VectorStore] Write-back: {added} chunks from {len(search_results)} live results")
         return added
+
+    # ── CLAIM ANALYSIS WRITE-BACK ─────────────────────────────────────────────
+    def write_claim(
+        self,
+        claim: str,
+        analysis: dict,
+        language: str = "en",
+        evidence_results: list = None,
+    ) -> bool:
+        """Store a completed claim and its analysis in suscan_claims.
+
+        The deterministic ID makes repeat submissions of the same normalized
+        claim (in the same language) update the existing record.
+        """
+        if not claim or not claim.strip() or not isinstance(analysis, dict) or not analysis:
+            return False
+
+        try:
+            normalized_claim = " ".join(claim.lower().split())
+            claim_id = hashlib.sha256(
+                f"{language}::{normalized_claim}".encode("utf-8")
+            ).hexdigest()
+
+            evidence_urls = []
+            for result in (evidence_results or []):
+                url = result.get("url") or result.get("link")
+                if url and url not in evidence_urls:
+                    evidence_urls.append(url)
+
+            try:
+                truth_score = float(analysis.get("truth_score", 0) or 0)
+            except (TypeError, ValueError):
+                truth_score = 0.0
+
+            metadata = {
+                "language": str(language or "en"),
+                "final_verdict": str(analysis.get("final_verdict", "unclear")),
+                "truth_score": truth_score,
+                "bias_detected": bool(analysis.get("bias_detected", False)),
+                "summary": str(analysis.get("summary", ""))[:1500],
+                "reasoning": str(analysis.get("reasoning", ""))[:2000],
+                "missing_context": str(analysis.get("missing_context", ""))[:1500],
+                "detected_language": str(analysis.get("detected_language", language or "en")),
+                "evidence_urls": json.dumps(evidence_urls, ensure_ascii=False),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+            embedding = self.embedder.encode(
+                [claim], show_progress_bar=False
+            ).tolist()
+
+            self.claims_collection.upsert(
+                ids=[claim_id],
+                embeddings=embedding,
+                documents=[claim],
+                metadatas=[metadata],
+            )
+
+            logger.info(f"[VectorStore] Saved analysed claim: {claim[:80]}")
+            return True
+
+        except Exception as e:
+            logger.exception(f"[VectorStore] Failed to save claim: {e}")
+            return False
 
     # ── RETENTION CLEANUP — fixed to use numeric timestamp ────────────────────
     def delete_old_chunks(self, retention_days: int = RETENTION_DAYS) -> int:
