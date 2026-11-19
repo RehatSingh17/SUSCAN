@@ -1,0 +1,65 @@
+
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - analyse
+      - ocr
+      - rag
+      - translate
+    restart: always
+
+  analyse:
+    build: ./services/analyse
+    env_file: .env
+    environment:
+      - OCR_SERVICE_URL=http://ocr:8002
+      - RAG_SERVICE_URL=http://rag:8003
+      - TRANSLATE_SERVICE_URL=http://translate:8004
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - huggingface_cache:/root/.cache/huggingface
+    depends_on:
+      - ocr
+      - rag
+      - translate
+      - redis
+    restart: always
+
+  ocr:
+    build: ./services/ocr
+    env_file: .env
+    restart: always
+
+  rag:
+    build: ./services/rag
+    env_file: .env
+    environment:
+      - CHROMA_DIR=/data/chroma_db
+      - HF_HOME=/root/.cache/huggingface
+      - HF_HUB_CACHE=/root/.cache/huggingface/hub
+    volumes:
+      - chroma_data:/data/chroma_db
+      - huggingface_cache:/root/.cache/huggingface
+    restart: always
+
+  translate:
+    build: ./services/translate
+    env_file: .env
+    restart: always
+
+  redis:
+    image: redis/redis-stack-server:7.4.0-v2
+    ports:
+      - "6379:6379"
+    environment:
+      - REDIS_ARGS=--maxmemory 256mb --maxmemory-policy allkeys-lru
+    restart: always
+
+volumes:
+  chroma_data:
+  huggingface_cache:

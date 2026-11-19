@@ -327,7 +327,7 @@ function ApplyModal({ onClose }) {
     try {
       // POST to your backend endpoint — configure this on your server
       // to forward the email to rakshamshar@gmail.com
-      const res = await fetch("http://localhost:8000/api/apply-source", {
+      const res = await fetch("http://localhost:80/api/apply-source", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

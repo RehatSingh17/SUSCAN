@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+python-multipart
+httpx
+python-dotenv
+groq
+requests
+beautifulsoup4
+langdetect
+redis
+sentence-transformers
